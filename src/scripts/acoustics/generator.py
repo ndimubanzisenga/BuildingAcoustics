@@ -34,11 +34,12 @@ class Generator(object):
         :param noise_type: Type of noise.
         """
         _noise_generators = {
-            'white'  : self.white,
-            'pink'   : self.pink,
-            'blue'   : self.blue,
-            'brown'  : self.brown,
-            'violet' : self.violet,
+            'white'     : self.white,
+            'pink'      : self.pink,
+            'blue'      : self.blue,
+            'brown'     : self.brown,
+            'violet'    : self.violet,
+            'sine_sweep': self.sine_sweep,
             }
 
         try:
@@ -136,7 +137,7 @@ class Generator(object):
         return self._signal.normalize(y)
 
 
-    def sine_sweep(self, f_start, f_stop):
+    def sine_sweep(self, f_start=50., f_stop=5000.):
         """
         Sine sweep. The total power remains constant per octave.
         The frequency of the signal is changed exponetially.
