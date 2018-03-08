@@ -199,3 +199,23 @@ class Generator(object):
         I = I[peek_x:]
 
         return I
+
+
+    def simulate_measured_signal(self, generated_signal=None, attenuation=0.1, delay=0., noise_rms=0.05):
+        """
+        Simulate a measured signal by attenuating, delaying and adding noise to a generated signal.
+        .. measured_signal = attenuation * generated_signal(-delay) + background_noise
+
+        :param generated_signal: Noise and attenuation free signal that is generated and played :Numpy::'array'
+        :param attenuation: factor by which the system (room) attenuates the generated signal, as received by a microphone.
+        :param delay: delay the signal takes to be measured.
+        :param noise_rms: the RMS of the white noise that is added to the signal.
+
+        Return a simulation of the measured signal.
+        """
+        if generated_signal is None:
+            raise ValueError("The generated noise and attenuation free signal has to be given")
+
+        #ToDo: Add delay
+        background_noise = noise_rms * np.random.random_sample(generated_signal.size)
+        return (attenuation * generated_signal + background_noise)
