@@ -195,7 +195,7 @@ class pscript(lys.mclass):
         # Get input blocks
         channel_data = 0
         channel_selector = 1
-        delay = 1 # In blocks
+        delay = 2 # In blocks
         acquired_data_buffer = self.GetInputBlock(channel_data)
         room_selector_buffer = self.GetInputBlock(channel_selector)
 
