@@ -28,7 +28,7 @@ class Generator(object):
         self._signal = Signal()
         #self.probe_pulse = None
 
-    def noise   (self, noise_type='white'):
+    def noise   (self, noise_type='white', args=None):
         """Noise generator.
 
         :param noise_type: Type of noise.
@@ -43,12 +43,12 @@ class Generator(object):
             }
 
         try:
-            return _noise_generators[noise_type]()
+            return _noise_generators[noise_type](args)
         except KeyError:
             raise ValueError("Incorrect type.")
 
 
-    def white(self):
+    def white(self, args=None):
         """
         White noise.
 
@@ -60,7 +60,7 @@ class Generator(object):
         return state.randn(self._N)
 
 
-    def pink(self):
+    def pink(self, args=None):
         """
         Pink noise.
 
@@ -84,7 +84,7 @@ class Generator(object):
         return self._signal.normalize(y)
 
 
-    def blue(self):
+    def blue(self, args=None):
         """
         Blue noise.
 
@@ -101,7 +101,7 @@ class Generator(object):
         return self._signal.normalize(y)
 
 
-    def brown(self):
+    def brown(self, args=None):
         """
         Violet noise.
 
@@ -119,7 +119,7 @@ class Generator(object):
         return self._signal.normalize(y)
 
 
-    def violet(self):
+    def violet(self, args=None):
         """
         Violet noise. Power increases with 6 dB per octave.
 
@@ -137,16 +137,20 @@ class Generator(object):
         return self._signal.normalize(y)
 
 
-    def sine_sweep(self, f_start=50., f_stop=5000.):
+    def sine_sweep(self, args=None):
         """
         Sine sweep. The total power remains constant per octave.
         The frequency of the signal is changed exponetially.
 
-        :param f_start: Minimum frequency on which the sine sweep is initialized.
-        :param f_stop: Maximum frequency of the sine sweep.
+        :param args: tuple of:
+            :math::f_start: Minimum frequency on which the sine sweep is initialized.
+            :math::f_stop: Maximum frequency of the sine sweep.
 
         The rate of change from f_start to f_stop is expontential.
         """
+        if args is None:
+            args = [50., 10000.]
+
         def probe():
             def lin_freq(t):
                 return w1*t + (w2-w1)/T * t*t / 2
@@ -157,6 +161,7 @@ class Generator(object):
             freqs = log_freq(range(int(T)))
             return np.sin(freqs)
 
+        f_start, f_stop = args
         w1 = f_start / self._fs * 2*np.pi
         w2 = f_stop / self._fs * 2*np.pi
         T = self._N
@@ -189,7 +194,7 @@ class Generator(object):
         # Now we have to normilze energy of result of dot product.
         # This is "naive" method but it just works.
         Frp =  fft(fftconvolve(reverse_pulse, probe_pulse))
-        reverse_pulse /= np.abs(Frp[int(round(Frp.shape[0]/4)]))
+        reverse_pulse /= np.abs(Frp[int(round(Frp.shape[0]/4))])
 
         return probe_pulse, reverse_pulse
 
