@@ -8,6 +8,32 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
+T_0 = 0.5 # Reference reverberation time
+
+class AcousticParameters(object):
+    def __init__(self, bands_number):
+        self.L = np.zeros(bands_number)
+        self.T = np.zeros(bands_number)
+        self.Ln = np.zeros(bands_number)
+        self.L_sigma = np.zeros(bands_number)
+        self.T_sigma = np.zeros(bands_number)
+        self.Ln_sigma = np.zeros(bands_number)
+        self._L_count = 0
+        self._T_count = 0
+
+    def average_L(self, L):
+        N = self._L_count
+        self.L = (self.L * N + L) / (N + 1)
+        self._L_count = self._L_count + 1
+        # ToDo: Set sigma
+
+    def average_T(self, T):
+        N = self._T_count
+        self.T = (self.T * N + T) / (N + 1)
+        self._T_count = self._T_count + 1
+        # ToDo: Set sigma
+
+
 class BuildingAcousticsMeasurement(object):
     def __init__(self, fs=44100, f_start=50., f_stop=5000., fraction=3):
         """
@@ -20,16 +46,22 @@ class BuildingAcousticsMeasurement(object):
         self._f_stop = f_stop
         self._fraction = fraction
         self._fs = fs
+        self._room_acoustic_params = None
+        self._rooms_measurements = list()
 
         self.probe_signal = None
         self.response_signal = None
         self.octave_bands = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction).center
         self.tx_room_spl = None
         self.rx_room_spl = None
+        self.reverberation_time = None
         self.transmission_loss = None
         self.rx_room_background_noise_spl = None
         self.rx_room_reverberation_time = None
         self.ref_curve = None
+
+        self.initialize_room_measurement()
+
 
     def compute_building_acoustics_parameters(self):
         """
@@ -44,14 +76,33 @@ class BuildingAcousticsMeasurement(object):
     def diagnose_defect(self):
         pass
 
-    def compute_spl(self, signal, room):
+    def initialize_room_measurement(self):
+        bands_number = self.octave_bands.size
+        tx_room_acoustic_params = AcousticParameters(bands_number)
+        rx_room_acoustic_params = AcousticParameters(bands_number)
+        self._rooms_measurements.append(tx_room_acoustic_params)
+        self._rooms_measurements.append(rx_room_acoustic_params)
+        #self._room_acoustic_params = AcousticParameters(bands_number)
+        return
+
+    def finalize_room_measurement(self):
+        self._rooms_measurements.append(self._room_acoustic_params)
+        return
+
+    def update_attributes(self):
+        self.tx_room_spl = self._rooms_measurements[0].L
+        self.rx_room_spl = self._rooms_measurements[1].L
+        self.reverberation_time = self._rooms_measurements[1].T
+        return
+
+    def compute_spl(self, room, signal):
         """
         Compute the sound pressure level.
         :param signal: Measured raw signal in the room.
         :param room: Room in which the signal measurement is made. Possible values are : {'tx', 'rx', 'noise_rx'}.
         """
-        if (room is not 'tx') and (room is not 'rx') and (room is not 'noise_rx'):
-            raise ValueError("Specified room type should be either 'rx' or 'tx' or 'noise_rx'")
+        if (room is not 'tx') and (room is not 'rx'):
+            raise ValueError("Room parameter should take values {'tx', 'rx'}")
 
         self.response_signal = signal
         f_start = self._f_start
@@ -60,25 +111,57 @@ class BuildingAcousticsMeasurement(object):
         octave_bands = self.octave_bands
 
         spectrum = Spectrum()
-        #frequencies = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction)
         _, octaves_power_levels = spectrum.third_octaves(signal, self._fs, frequencies=octave_bands)
-        #self.octave_bands = frequencies.center
-        if room == 'tx':
-            self.tx_room_spl = octaves_power_levels
-        elif room == 'rx':
-            self.rx_room_spl = octaves_power_levels
-        elif room == 'noise_rx':
-            self.rx_room_background_noise_spl = octaves_power_levels
-
+        if room is 'tx':
+            self._rooms_measurements[0].average_L(octaves_power_levels)
+        elif room is 'rx':
+            self._rooms_measurements[1].average_L(octaves_power_levels)
+        self.update_attributes()
+        #self._room_acoustic_params.average_L(octaves_power_levels)
         return
+
+    def compute_reverberation_time(self, room, signal=None, fs=None, method='impulse'):
+        """
+        Compute reverberation time.
+
+        :param signal: signal to use for the computation of the reverberation time.
+                This can be a measured impulse response or raw sound pressure according to the chosen method.
+        :param fs: Sampling frequency of the measured signal.
+        :param method: Method to use for the computation of the reverberation time :{'impulse',}
+
+        """
+        if (method is not 'impulse'):
+            return ValueError("Possible value of the method argument are : {'impulse',}")
+        if (room is not 'tx') and (room is not 'rx'):
+            raise ValueError("Room parameter should take values {'tx', 'rx'}")
+
+        reverberation_time = None
+        if (method is 'impulse'):
+            reverberation_time = self.t60_impulse(measured_impulse_response=signal, fs=fs)
+
+        if room is 'tx':
+            self._rooms_measurements[0].average_T(reverberation_time)
+        elif room is 'rx':
+            self._rooms_measurements[1].average_T(reverberation_time)
+        self.update_attributes()
+        #self._room_acoustic_params.average_T(reverberation_time)
+        return
+
+    def DnT(self):
+        D = self.compute_transmission_loss()
+        T = self._rooms_measurements[1].T
+        Ln = self._rooms_measurements[1].Ln
+
+        DnT = D + 10 * np.log10(T / T_0)
+
+        return DnT
 
     def compute_transmission_loss(self):
         """
         Compute the transmission loss, given the spl in the Transmitting and Receiving room has been computed.
         """
-        if (self.rx_room_spl is None) or (self.tx_room_spl is None):
-            raise ValueError("First compute the Receiving room and Transmitting room SPL.")
-
+        if (len(self._rooms_measurements) is not 2):
+            raise ValueError("Measurements from both the Transmitting and Receiving rooms are not avaliable")
         self.transmission_loss = self.tx_room_spl - self.rx_room_spl
 
         return
@@ -132,27 +215,6 @@ class BuildingAcousticsMeasurement(object):
         self.ref_curve = ref_curve
 
         return
-
-
-    def compute_reverberation_time(self, signal=None, fs=None, method='impulse'):
-        """
-        Compute reverberation time.
-
-        :param signal: signal to use for the computation of the reverberation time.
-                This can be a measured impulse response or raw sound pressure according to the chosen method.
-        :param fs: Sampling frequency of the measured signal.
-        :param method: Method to use for the computation of the reverberation time :{'impulse',}
-
-        """
-        if (method is not 'impulse'):
-            return ValueError("Possible value of the method argument are : {'impulse',}")
-
-        reverberation_time = None
-        if (method is 'impulse'):
-            reverberation_time = self.t60_impulse(measured_impulse_response=signal, fs=fs)
-
-        return reverberation_time
-
 
     def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30'):
         """
