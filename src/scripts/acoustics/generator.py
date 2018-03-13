@@ -23,7 +23,7 @@ class Generator(object):
         """
         self._fs = fs
         self._duration = duration
-        self._N = fs * duration
+        self._N = int(fs * (duration - 2))
         self._state = state
         self._signal = Signal()
         #self.probe_pulse = None
@@ -168,6 +168,10 @@ class Generator(object):
         probe_pulse[:exp_window.shape[0]] *= exp_window
         probe_pulse[-exp_window.shape[0]:] *= exp_window[-1::-1]
 
+        # Add a 1second silence at the start and at the end of the sequence
+        probe_pulse = np.append(np.zeros(int(self._fs)), probe_pulse)
+        probe_pulse = np.append(probe_pulse, np.zeros(int(self._fs)))
+
         # This is what the value of K will be at the end (in dB):
         kend = 10**((-6*np.log2(w2/w1))/20)
         # dB to rational number.
@@ -178,14 +182,14 @@ class Generator(object):
         # 6 dB per octave amplitude decrease.
         reverse_pulse = probe_pulse[-1::-1] * \
             np.array(list(\
-                map(lambda t: np.exp(float(t)*k), range(int(T)))\
+                map(lambda t: np.exp(float(t)*k), range(int(probe_pulse.size)))\
                 )\
             )
 
         # Now we have to normilze energy of result of dot product.
         # This is "naive" method but it just works.
         Frp =  fft(fftconvolve(reverse_pulse, probe_pulse))
-        reverse_pulse /= np.abs(Frp[round(Frp.shape[0]/4)])
+        reverse_pulse /= np.abs(Frp[int(round(Frp.shape[0]/4)]))
 
         return probe_pulse, reverse_pulse
 
@@ -193,7 +197,7 @@ class Generator(object):
     def estimate_impulse_response(self, room_response, reverse_pulse):
 
         I = fftconvolve( room_response, reverse_pulse, mode='full')
-        I = I[probe_pulse.shape[0]:probe_pulse.shape[0]*2+1]
+        I = I[self._N:self._N*2+1]
 
         peek_x = np.argmax( I, axis=0 )
         I = I[peek_x:]
