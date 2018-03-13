@@ -195,6 +195,7 @@ class pscript(lys.mclass):
         # Get input blocks
         channel_data = 0
         channel_selector = 1
+        delay = 1 # In blocks
         acquired_data_buffer = self.GetInputBlock(channel_data)
         room_selector_buffer = self.GetInputBlock(channel_selector)
 
@@ -203,16 +204,25 @@ class pscript(lys.mclass):
 
         is_data_acquisition_done = Ly.GetVar(1)
         if not is_data_acquisition_done:
-            # Process data
-            if (block_size * self.pvar.block_count) < sequence_length:
+            # Process data. Acquires data with a delay of one block, since the probe signal is played after the first block
+            if (block_size * (self.pvar.block_count - delay)) < sequence_length:
                 acquired_data_block = dasylabToNumpy(acquired_data_buffer)
                 output_data_block = None
 
                 if (sequence_length - block_size * self.pvar.block_count) < block_size:
                     # Check if this is the last block of the generated signal
                     # Check if the last block of the generated signal has fewer samples than the block_size
-                    output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):]
-                    acquired_data_block = acquired_data_block[:output_data_block.size]
+                    if (sequence_length - block_size * self.pvar.block_count) <= 0:
+                        # In case the whole probe signal has been played
+                        output_data_block = np.zeros(block_size)
+                    else:
+                        # If this is the last block in the probe signal
+                        output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):]
+                    n_samples_last_block = sequence_length - block_size * (self.pvar.block_count - delay)
+                    if self.pvar.block_count < delay:
+                        # If the probe signal length is less than the block_size. Hence the signal can't be delayed further
+                        n_samples_last_block = sequence_length
+                    acquired_data_block = acquired_data_block[:n_samples_last_block]
                 else:
                     # Case where the generated signal block is a equal to the block_size
                     output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):(block_size * (self.pvar.block_count+1))]
@@ -225,10 +235,10 @@ class pscript(lys.mclass):
                 numpyToDasylab(probe_signal_out_buffer, output_data_block)
 
                 probe_signal_out_buffer.Release()
-                # Store acquired signal
-                if (self.pvar.block_count is 0):
+                # Store acquired signal. The fist block is skipped since the probe signal isn't played yet
+                if (self.pvar.block_count is delay):
                     self.pvar.room_response = acquired_data_block
-                else:
+                elif (self.pvar.block_count > delay):
                     self.pvar.room_response = np.append(self.pvar.room_response, acquired_data_block)
                 self.pvar.block_count = self.pvar.block_count + 1
             else:
@@ -256,8 +266,6 @@ class pscript(lys.mclass):
                 self.pvar.block_count = 0 # Reset probe signal output block count
                 print("Reverberation time:\n{0}").format(self.pvar.building_acoustics_measurement.reverberation_time)
 
-            #output_data = np.zeros(acquired_data_buffer.BlockSize)
-            #numpyToDasylab(0, acquired_data_buffer, output_data)
         acquired_data_buffer.Release()
         room_selector_buffer.Release()
         return True
