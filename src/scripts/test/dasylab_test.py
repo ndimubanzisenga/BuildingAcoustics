@@ -31,7 +31,8 @@ class info(object):
 
 # Temporary variables, not saved with the worksheet
 class pvar(object):
-    def __init__(self, sampling_frequency, probe_signal_duration, probe_signal_freq_l=100., probe_signal_freq_h=15000., low_octave_band=100., high_octave_band=3150., fraction=3):
+    def __init__(self, sampling_frequency, probe_signal_duration, probe_signal_freq_l=100., probe_signal_freq_h=15000.,\
+                low_octave_band=100., high_octave_band=3150., fraction=3):
         # Working variables
         # Click on the help button to get more information.
         # Example variables
@@ -43,7 +44,8 @@ class pvar(object):
         else:
             self.probe_signal = self.generator.noise(noise_type)
         self.room_response = None
-        self.building_acoustics_measurement = BuildingAcousticsMeasurement(fs= sampling_frequency, f_start=low_octave_band, f_stop=high_octave_band, fraction=fraction)
+        self.building_acoustics_measurement = BuildingAcousticsMeasurement(fs= sampling_frequency, f_start=low_octave_band,\
+                                                                            f_stop=high_octave_band, fraction=fraction)
         self.block_count = 0
 
 class pscript(lys.mclass):
@@ -55,8 +57,8 @@ class pscript(lys.mclass):
         #Ly.SetTimeBase(timebase_id, blocksize, sampleDistance)
         print("## Initializing module.... ##")
         self.info = info()
-        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l, self.info.probe_signal_freq_h,\
-                        self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
+        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,\
+                         self.info.probe_signal_freq_h, self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
         print("## Initialized module.... ##")
 
     def Create (self):
@@ -86,14 +88,16 @@ class pscript(lys.mclass):
         # Setup dialog parameters
         dm = lys.DialogManager(self, dlg)
         dm.SelectModulePage()
-        dm.AppendFloat("Param sampling_frequency", self.info.sampling_frequency, "Sampling frequency with which the signal is to be generated and measured")
+        dm.AppendFloat("Param sampling_frequency", self.info.sampling_frequency,\
+                        "Sampling frequency with which the signal is to be generated and measured")
         dm.AppendFloat("Param low_octave_band", self.info.low_octave_band, "Lowest octave band center frequency")
         dm.AppendFloat("Param high_octave_band", self.info.high_octave_band, "Highest octave band center frequency")
         dm.AppendFloat("Param fraction", self.info.fraction, "Octave band fraction")
         dm.AppendFloat("Param probe_signal_duration", self.info.probe_signal_duration, "Duration of the probe signal")
         dm.AppendFloat("Param probe_signal_freq_l", self.info.probe_signal_freq_l, "Lowest frequency of the probe signal")
         dm.AppendFloat("Param probe_signal_freq_h", self.info.probe_signal_freq_h, "Highest frequency of the probe signal")
-        dm.AppendFloat("Param data_acquisition_delay", self.info.data_acquisition_delay, "Delay in blocks after which to start data acquisition")
+        dm.AppendFloat("Param data_acquisition_delay", self.info.data_acquisition_delay,\
+                        "Delay in blocks after which to start data acquisition")
 
     def DlgOk (self, dlg):
         # Get values of dialog parameters
@@ -108,8 +112,8 @@ class pscript(lys.mclass):
         self.info.probe_signal_freq_h = dom.GetValue("Param probe_signal_freq_h")
         self.info.data_acquisition_delay = dom.GetValue("Param data_acquisition_delay")
 
-        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l, self.info.probe_signal_freq_h,\
-                        self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
+        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,\
+                         self.info.probe_signal_freq_h, self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
 
         # Configure Inputs and Outputs
         # (Covers 1:1 channel relation with at least one input.
