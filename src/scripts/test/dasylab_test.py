@@ -4,6 +4,7 @@ import lys
 import sys
 
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 
 sys.path.append('C:/Users/sengan/Documents/Projects/BuildingAcoustics/src/scripts')
 from acoustics.building_acoustics_measurement import BuildingAcousticsMeasurement
@@ -194,6 +195,13 @@ class pscript(lys.mclass):
                 data.append(inBuffer[i])
             return (np.asarray(data))
 
+        def dilateArray(oldArray, newLength):
+            oldIndices = np.arange(0, oldArray.size)
+            newIndices = np.linspace(0, (oldArray.size - 1), newLength)
+            spl = UnivariateSpline(oldIndices, oldArray, k=3, s=0)
+            newArray = spl(newIndices)
+            return newArray
+
         # All inputs available?
         for i in range(self.NumInChannel):
             if (self.GetInputBlock(i) == None):
@@ -211,7 +219,8 @@ class pscript(lys.mclass):
 
         is_data_acquisition_done = Ly.GetVar(1)
         if not is_data_acquisition_done:
-            # Process data. Acquires data with a delay of one block, since the probe signal is played after the first block
+            # Process data. Acquires data with a delay of 'delay' blocks, since the probe signal is played after the first block.
+            # Hence the time it takes to play and start recording the signal is taken into account
             if (block_size * (self.pvar.block_count - delay)) < sequence_length:
                 acquired_data_block = dasylabToNumpy(acquired_data_buffer)
                 output_data_block = None
@@ -240,8 +249,8 @@ class pscript(lys.mclass):
                 probe_signal_out_buffer.SampleDistance = acquired_data_buffer.SampleDistance
 
                 numpyToDasylab(probe_signal_out_buffer, output_data_block)
-
                 probe_signal_out_buffer.Release()
+
                 # Store acquired signal. The fist block is skipped since the probe signal isn't played yet
                 if (self.pvar.block_count is delay):
                     self.pvar.room_response = acquired_data_block
@@ -270,7 +279,16 @@ class pscript(lys.mclass):
                 else:
                     # No room selected
                     print("No room selected")
-                print("Reverberation time:\n{0}").format(self.pvar.building_acoustics_measurement.reverberation_time)
+                reverberation_time = self.pvar.building_acoustics_measurement.reverberation_time
+                print("Reverberation time:\n{0}").format(reverberation_time)
+
+                reverberation_time = dilateArray(reverberation_time, block_size)
+                reverberation_time_out_buffer = self.GetOutputBlock(channel_selector)
+                reverberation_time_out_buffer.BlockSize = acquired_data_buffer.BlockSize
+                reverberation_time_out_buffer.StartTime = acquired_data_buffer.StartTime
+                reverberation_time_out_buffer.SampleDistance = acquired_data_buffer.SampleDistance
+                numpyToDasylab(reverberation_time_out_buffer, reverberation_time)
+                reverberation_time_out_buffer.Release()
 
         acquired_data_buffer.Release()
         room_selector_buffer.Release()
