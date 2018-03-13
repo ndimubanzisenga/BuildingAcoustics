@@ -27,6 +27,7 @@ class info(object):
         self.probe_signal_duration = 10.
         self.probe_signal_freq_l = 100.
         self.probe_signal_freq_h = 15000.
+        self.data_acquisition_delay = 2
 
 # Temporary variables, not saved with the worksheet
 class pvar(object):
@@ -38,7 +39,7 @@ class pvar(object):
         noise_type = 'sine_sweep'
 
         if noise_type == 'sine_sweep':
-            self.probe_signal, self.reverse_signal = self.generator.noise(noise_type)
+            self.probe_signal, self.reverse_signal = self.generator.noise(noise_type, [probe_signal_freq_l, probe_signal_freq_h])
         else:
             self.probe_signal = self.generator.noise(noise_type)
         self.room_response = None
@@ -92,6 +93,7 @@ class pscript(lys.mclass):
         dm.AppendFloat("Param probe_signal_duration", self.info.probe_signal_duration, "Duration of the probe signal")
         dm.AppendFloat("Param probe_signal_freq_l", self.info.probe_signal_freq_l, "Lowest frequency of the probe signal")
         dm.AppendFloat("Param probe_signal_freq_h", self.info.probe_signal_freq_h, "Highest frequency of the probe signal")
+        dm.AppendFloat("Param data_acquisition_delay", self.info.data_acquisition_delay, "Delay in blocks after which to start data acquisition")
 
     def DlgOk (self, dlg):
         # Get values of dialog parameters
@@ -104,6 +106,7 @@ class pscript(lys.mclass):
         self.info.probe_signal_duration = dom.GetValue("Param probe_signal_duration")
         self.info.probe_signal_freq_l = dom.GetValue("Param probe_signal_freq_l")
         self.info.probe_signal_freq_h = dom.GetValue("Param probe_signal_freq_h")
+        self.info.data_acquisition_delay = dom.GetValue("Param data_acquisition_delay")
 
         self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l, self.info.probe_signal_freq_h,\
                         self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
@@ -195,7 +198,7 @@ class pscript(lys.mclass):
         # Get input blocks
         channel_data = 0
         channel_selector = 1
-        delay = 2 # In blocks
+        delay = self.info.data_acquisition_delay # In blocks
         acquired_data_buffer = self.GetInputBlock(channel_data)
         room_selector_buffer = self.GetInputBlock(channel_selector)
 
@@ -242,9 +245,10 @@ class pscript(lys.mclass):
                     self.pvar.room_response = np.append(self.pvar.room_response, acquired_data_block)
                 self.pvar.block_count = self.pvar.block_count + 1
             else:
+                Ly.SetVar(1, 5.0) # Terminate data acquisition
+                self.pvar.block_count = 0 # Reset probe signal output block count
                 print("Probe Signal : {0}").format(self.pvar.probe_signal.shape)
                 print("Room response : {0}").format(self.pvar.room_response.shape)
-
 
                 impulse_response = self.pvar.generator.estimate_impulse_response(self.pvar.room_response[0:], self.pvar.reverse_signal)
                 #np.savetxt('C:/Users/sengan/Documents/Projects/BuildingAcoustics/data/impulse_response.log', impulse_response)
@@ -262,8 +266,6 @@ class pscript(lys.mclass):
                 else:
                     # No room selected
                     print("No room selected")
-                Ly.SetVar(1, 5.0) # Terminate data acquisition
-                self.pvar.block_count = 0 # Reset probe signal output block count
                 print("Reverberation time:\n{0}").format(self.pvar.building_acoustics_measurement.reverberation_time)
 
         acquired_data_buffer.Release()
