@@ -23,7 +23,8 @@ class Generator(object):
         """
         self._fs = fs
         self._duration = duration
-        self._N = int(fs * (duration - 2))
+        #self._N = int(fs * (duration - 2))
+        self._N = int(fs * duration)
         self._state = state
         self._signal = Signal()
         #self.probe_pulse = None
@@ -174,8 +175,8 @@ class Generator(object):
         probe_pulse[-exp_window.shape[0]:] *= exp_window[-1::-1]
 
         # Add a 1second silence at the start and at the end of the sequence
-        probe_pulse = np.append(np.zeros(int(self._fs)), probe_pulse)
-        probe_pulse = np.append(probe_pulse, np.zeros(int(self._fs)))
+        #probe_pulse = np.append(np.zeros(int(self._fs)), probe_pulse)
+        #probe_pulse = np.append(probe_pulse, np.zeros(int(self._fs)))
 
         # This is what the value of K will be at the end (in dB):
         kend = 10**((-6*np.log2(w2/w1))/20)
