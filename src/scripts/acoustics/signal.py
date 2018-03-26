@@ -582,7 +582,7 @@ class Signal(object):
 
 
 class Spectrum(object):
-    def third_octaves(self, p, fs, density=False,
+    def third_octaves(self, x, fs, density=False,
                   frequencies=NOMINAL_THIRD_OCTAVE_CENTER_FREQUENCIES,
                   ref=REFERENCE_PRESSURE):
         """Calculate level per 1/3-octave in frequency domain using the FFT.
@@ -600,15 +600,15 @@ class Spectrum(object):
 
         """
         fob = OctaveBand(center=frequencies, fraction=3)
-        f, p = self.power_spectrum(p, fs)
+        f, p = self.power_spectrum(x, fs)
         fnb = EqualBand(f)
         power = self.integrate_bands(p, fnb, fob)
         if density:
             power /= (fob.bandwidth/fnb.bandwidth)
         level = 10.0*np.log10(power / ref**2.0)
         return fob, level
-        
-    def octaves(self, p, fs, density=False,
+
+    def octaves(self, x, fs, density=False,
                 frequencies=NOMINAL_OCTAVE_CENTER_FREQUENCIES,
                 ref=REFERENCE_PRESSURE):
         """Calculate level per 1/1-octave in frequency domain using the FFT.
@@ -628,7 +628,7 @@ class Spectrum(object):
 
         """
         fob = OctaveBand(center=frequencies, fraction=1)
-        f, p = self.power_spectrum(p, fs)
+        f, p = self.power_spectrum(x, fs)
         fnb = EqualBand(f)
         power = self.integrate_bands(p, fnb, fob)
         if density:
@@ -637,7 +637,7 @@ class Spectrum(object):
         return fob, level
 
 
-    def fractional_octaves(self, p, fs, start=5.0, stop=16000.0, fraction=3, density=False):
+    def fractional_octaves(self, x, fs, start=5.0, stop=16000.0, fraction=3, density=False):
         """Calculate level per 1/N-octave in frequency domain using the FFT. N is `fraction`.
 
         :param x: Instantaneous signal :math:`x(t)`.
@@ -652,7 +652,7 @@ class Spectrum(object):
         .. note:: Exact center frequencies are always calculated.
         """
         fob = OctaveBand(fstart=start, fstop=stop, fraction=fraction)
-        f, p = self.power_spectrum(p, fs)
+        f, p = self.power_spectrum(x, fs)
         fnb = EqualBand(f)
         power = self.integrate_bands(p, fnb, fob)
         if density:
