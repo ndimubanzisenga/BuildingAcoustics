@@ -77,11 +77,13 @@ class BuildingAcousticsMeasurement(object):
         pass
 
     def initialize_room_measurement(self):
+        self._rooms_measurements = list()
         bands_number = self.octave_bands.size
         tx_room_acoustic_params = AcousticParameters(bands_number)
         rx_room_acoustic_params = AcousticParameters(bands_number)
         self._rooms_measurements.append(tx_room_acoustic_params)
         self._rooms_measurements.append(rx_room_acoustic_params)
+        self.update_attributes()
         #self._room_acoustic_params = AcousticParameters(bands_number)
         return
 
@@ -120,7 +122,7 @@ class BuildingAcousticsMeasurement(object):
         #self._room_acoustic_params.average_L(octaves_power_levels)
         return
 
-    def compute_reverberation_time(self, room, signal=None, fs=None, method='impulse'):
+    def compute_reverberation_time(self, room, signal=None, fs=None, method='impulse', args=None):
         """
         Compute reverberation time.
 
@@ -128,6 +130,7 @@ class BuildingAcousticsMeasurement(object):
                 This can be a measured impulse response or raw sound pressure according to the chosen method.
         :param fs: Sampling frequency of the measured signal.
         :param method: Method to use for the computation of the reverberation time :{'impulse',}
+        :param args: method specific arguments
 
         """
         if (method is not 'impulse'):
@@ -137,7 +140,10 @@ class BuildingAcousticsMeasurement(object):
 
         reverberation_time = None
         if (method is 'impulse'):
-            reverberation_time = self.t60_impulse(measured_impulse_response=signal, fs=fs)
+            if args is not None:
+                reverberation_time = self.t60_impulse(measured_impulse_response=signal, fs=fs, rt=args)
+            else:
+                reverberation_time = self.t60_impulse(measured_impulse_response=signal, fs=fs)
 
         if room is 'tx':
             self._rooms_measurements[0].average_T(reverberation_time)
@@ -240,7 +246,7 @@ class BuildingAcousticsMeasurement(object):
             else:
                 raise ValueError(" The sampling frequency of the measured impulse response must be set")
 
-        if (rt is not 't30') and (rt is not 't20') and (rt is not 't10') and (rt is not 'edt'):
+        if (rt is not 't30') and (rt is not 't20') and (rt is not 't10') and (rt is not 'edt') and (rt is not 'opt'):
             raise ValueError("Possible values of the rt argument are {'t30', 't20', 't10', 'edt'}")
 
         bands = OctaveBand(center=self.octave_bands, fraction=self._fraction)
@@ -263,6 +269,10 @@ class BuildingAcousticsMeasurement(object):
             init = 0.0
             end = -10.0
             factor = 6.0
+        elif rt == 'opt':
+            init = -1.0
+            end = -5.0
+            factor = 60 / (init - end)
 
         t60 = np.zeros(bands.center.size)
 
