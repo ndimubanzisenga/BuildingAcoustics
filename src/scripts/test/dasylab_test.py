@@ -3,12 +3,35 @@ import Ly
 import lys
 import sys
 
+import os
+import time
+import datetime
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
-sys.path.append('C:/Users/sengan/Documents/Projects/BuildingAcoustics/src/scripts')
+ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+sys.path.append(ROOT_DIR + 'src/scripts')
 from acoustics.building_acoustics_measurement import BuildingAcousticsMeasurement
 from acoustics.generator import Generator
+
+def log_data(fileName, data):
+    '''
+    Save data to file.
+    If data is of type numpy.ndarray, save it using numpy.savetxt.
+    If data is string, save it using standard python file handle.
+    '''
+    if not os.path.exists(os.path.dirname(fileName)):
+        os.makedirs(os.path.dirname(fileName))
+
+    if type(data) is str:
+        text_file = open(fileName, 'w')
+        text_file.write(data)
+        text_file.close()
+    elif type(data) is np.ndarray:
+        np.savetxt(fileName, data)
+    else:
+        raise ValueError("Can't log data of unknown type.")
+    return
 
 # Module variables initialization
 class info(object):
@@ -20,6 +43,7 @@ class info(object):
         timebase_id = Ly.GetTimeBaseIDByName('Driver')
         sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
         sampling_frequency = 1.0 /  float(sample_distance)
+        #print("Sampling Frequency : {0} Hz").format(sampling_frequency)
 
         self.sampling_frequency = sampling_frequency
         self.low_octave_band = 100.
@@ -27,13 +51,13 @@ class info(object):
         self.fraction = 3
         self.probe_signal_duration = 10.
         self.probe_signal_freq_l = 100.
-        self.probe_signal_freq_h = 15000.
+        self.probe_signal_freq_h = 10000.
         self.data_acquisition_delay = 2
 
 # Temporary variables, not saved with the worksheet
 class pvar(object):
     def __init__(self, sampling_frequency, probe_signal_duration, probe_signal_freq_l=100., probe_signal_freq_h=15000.,\
-                low_octave_band=100., high_octave_band=3150., fraction=3):
+                low_octave_band=100., high_octave_band=3150., fraction=3, description=''):
         # Working variables
         # Click on the help button to get more information.
         # Example variables
@@ -48,6 +72,22 @@ class pvar(object):
         self.building_acoustics_measurement = BuildingAcousticsMeasurement(fs= sampling_frequency, f_start=low_octave_band,\
                                                                             f_stop=high_octave_band, fraction=fraction)
         self.block_count = 0
+        self.measurement_count = 0
+
+        ts = time.time()
+        time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H%M%S')
+        self.log_dir = ('{0}/data/{1}').format(ROOT_DIR, time_stamp)
+        self.log_file_name = None
+        description_file_name = self.log_dir + '/MeasurementDescription.dd'
+        measurement_description = str(description)
+        measurement_description += ('Sampling Frequency : {0}\n').format(sampling_frequency)
+        measurement_description += ('Signal Duration : {0}\n').format(probe_signal_duration)
+        measurement_description += ('Noise Type : {0}\n').format(noise_type)
+        measurement_description += ('Lowest Generated Frequency : {0}\n').format(probe_signal_freq_l)
+        measurement_description += ('Highest Generated Frequency : {0}\n').format(probe_signal_freq_h)
+        measurement_description += ('Lowest Octave Band : {0}\n').format(low_octave_band)
+        measurement_description += ('Highest Octave Band : {0}\n').format(high_octave_band)
+        log_data(description_file_name, measurement_description)
 
 class pscript(lys.mclass):
     def __init__(self, magic):
@@ -140,8 +180,11 @@ class pscript(lys.mclass):
     def Start (self):
         # Initialize variables on start of measurement (if needed)
         # Click on the help button to get more information.
-        print("Reinitializing module....")
+        print("## Reinitializing module.... ##")
+        self.pvar.building_acoustics_measurement.initialize_room_measurement()
+        self.pvar.room_response = None
         self.pvar.block_count = 0
+        print("## Reinitialized module.... ##")
 
         return True
 
@@ -171,7 +214,11 @@ class pscript(lys.mclass):
         # if you have chosen a user defined setting because you very likely
         # need adjustments in this case!
 
-        def numpyToDasylab(outBuffer, numpyDataArray):
+        def numpyToDasylab(outBuffer, referenceBuffer, numpyDataArray):
+            outBuffer.BlockSize = referenceBuffer.BlockSize
+            outBuffer.StartTime = referenceBuffer.StartTime
+            outBuffer.SampleDistance = referenceBuffer.SampleDistance
+
             blockSize = outBuffer.BlockSize
             dataLength = numpyDataArray.size
 
@@ -187,6 +234,7 @@ class pscript(lys.mclass):
 
             for i in xrange(numpyDataArray.shape[0]):
                 outBuffer[i] = numpyDataArray[i]
+            outBuffer.Release()
             return
 
         def dasylabToNumpy(inBuffer):
@@ -198,7 +246,7 @@ class pscript(lys.mclass):
         def dilateArray(oldArray, newLength):
             oldIndices = np.arange(0, oldArray.size)
             newIndices = np.linspace(0, (oldArray.size - 1), newLength)
-            spl = UnivariateSpline(oldIndices, oldArray, k=3, s=0)
+            spl = UnivariateSpline(oldIndices, oldArray, k=1, s=0)
             newArray = spl(newIndices)
             return newArray
 
@@ -208,11 +256,12 @@ class pscript(lys.mclass):
                 return True
 
         # Get input blocks
-        channel_data = 0
-        channel_selector = 1
         delay = self.info.data_acquisition_delay # In blocks
-        acquired_data_buffer = self.GetInputBlock(channel_data)
-        room_selector_buffer = self.GetInputBlock(channel_selector)
+        acquired_data_buffer = self.GetInputBlock(0)
+        room_selector_buffer = self.GetInputBlock(1)
+        room_selector_buffer_1 = self.GetInputBlock(2)
+        room_selector_buffer_2 = self.GetInputBlock(3)
+        room_selector_buffer_3 = self.GetInputBlock(4)
 
         block_size = acquired_data_buffer.BlockSize
         sequence_length = self.pvar.probe_signal.size
@@ -243,53 +292,68 @@ class pscript(lys.mclass):
                     # Case where the generated signal block is a equal to the block_size
                     output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):(block_size * (self.pvar.block_count+1))]
 
-                probe_signal_out_buffer = self.GetOutputBlock(channel_data)
-                probe_signal_out_buffer.BlockSize = acquired_data_buffer.BlockSize
-                probe_signal_out_buffer.StartTime = acquired_data_buffer.StartTime
-                probe_signal_out_buffer.SampleDistance = acquired_data_buffer.SampleDistance
+                probe_signal_out_buffer = self.GetOutputBlock(0)
+                numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer, output_data_block)
 
-                numpyToDasylab(probe_signal_out_buffer, output_data_block)
-                probe_signal_out_buffer.Release()
-
-                # Store acquired signal. The fist block is skipped since the probe signal isn't played yet
+                # Store acquired signal. Storage starts after a delay since the probe signal isn't played yet.
                 if (self.pvar.block_count is delay):
+                    self.pvar.measurement_count += 1
                     self.pvar.room_response = acquired_data_block
+                    self.log_file_name = ('{0}/TestData-{1}.data').format(self.pvar.log_dir, self.pvar.measurement_count)
+
                 elif (self.pvar.block_count > delay):
                     self.pvar.room_response = np.append(self.pvar.room_response, acquired_data_block)
                 self.pvar.block_count = self.pvar.block_count + 1
             else:
                 Ly.SetVar(1, 5.0) # Terminate data acquisition
                 self.pvar.block_count = 0 # Reset probe signal output block count
-                print("Probe Signal : {0}").format(self.pvar.probe_signal.shape)
-                print("Room response : {0}").format(self.pvar.room_response.shape)
-
                 impulse_response = self.pvar.generator.estimate_impulse_response(self.pvar.room_response[0:], self.pvar.reverse_signal)
+                impulse_response = impulse_response[:self.info.sampling_frequency*1]
                 #np.savetxt('C:/Users/sengan/Documents/Projects/BuildingAcoustics/data/impulse_response.log', impulse_response)
-                print ("Impulse response : {0}").format(impulse_response.shape)
+                if self.log_file_name is not None:
+                    # ToDo add swtich within Dasylab
+                    log_data(self.log_file_name, self.pvar.room_response)
+
                 if room_selector_buffer[0] > 0:
                     # Transmitting room selected
-                    print("Transmitting room selected")
                     self.pvar.building_acoustics_measurement.compute_spl('tx', self.pvar.room_response)
-                    self.pvar.building_acoustics_measurement.compute_reverberation_time('tx', impulse_response)
+                    self.pvar.building_acoustics_measurement.compute_reverberation_time('tx', signal=impulse_response, args='t10')
                 elif room_selector_buffer[0] < 0:
                     # Receiving room selected
-                    print("Receiving room selected")
                     self.pvar.building_acoustics_measurement.compute_spl('rx', self.pvar.room_response)
-                    self.pvar.building_acoustics_measurement.compute_reverberation_time('rx', impulse_response)
+                    self.pvar.building_acoustics_measurement.compute_reverberation_time('rx', signal=impulse_response, args='t10')
                 else:
                     # No room selected
                     print("No room selected")
                 reverberation_time = self.pvar.building_acoustics_measurement.reverberation_time
+                tx_room_spl = self.pvar.building_acoustics_measurement.tx_room_spl
+                rx_room_spl = self.pvar.building_acoustics_measurement.rx_room_spl
+                octave_bands = self.pvar.building_acoustics_measurement.octave_bands
                 print("Reverberation time:\n{0}").format(reverberation_time)
+                #print("Tx Room SPL:\n{0}").format(tx_room_spl)
+                #print("Rx Room SPL:\n{0}").format(rx_room_spl)
+                #print("Octave bands \n{0}").format(octave_bands)
 
                 reverberation_time = dilateArray(reverberation_time, block_size)
-                reverberation_time_out_buffer = self.GetOutputBlock(channel_selector)
-                reverberation_time_out_buffer.BlockSize = acquired_data_buffer.BlockSize
-                reverberation_time_out_buffer.StartTime = acquired_data_buffer.StartTime
-                reverberation_time_out_buffer.SampleDistance = acquired_data_buffer.SampleDistance
-                numpyToDasylab(reverberation_time_out_buffer, reverberation_time)
-                reverberation_time_out_buffer.Release()
+                reverberation_time_out_buffer = self.GetOutputBlock(1)
+                numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer, reverberation_time)
+
+                tx_room_spl = dilateArray(tx_room_spl, block_size)
+                reverberation_time_out_buffer = self.GetOutputBlock(2)
+                numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer, tx_room_spl)
+
+                rx_room_spl = dilateArray(rx_room_spl, block_size)
+                reverberation_time_out_buffer = self.GetOutputBlock(3)
+                numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer, rx_room_spl)
+
+                octave_bands = dilateArray(octave_bands, block_size)
+                octave_bands_out_buffer = self.GetOutputBlock(4)
+                numpyToDasylab(octave_bands_out_buffer, acquired_data_buffer, octave_bands)
+
 
         acquired_data_buffer.Release()
         room_selector_buffer.Release()
+        room_selector_buffer_1.Release()
+        room_selector_buffer_2.Release()
+        room_selector_buffer_3.Release()
         return True
