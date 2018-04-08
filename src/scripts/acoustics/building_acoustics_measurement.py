@@ -36,6 +36,7 @@ class AcousticParameters(object):
 
 class BuildingAcousticsMeasurement(object):
     def __init__(self, fs=44100, f_start=50., f_stop=5000., fraction=3):
+        ### ToDo Generalize to multiple channels measurement
         """
         :param fs: sampling frequency
         :param f_start: Minimum frequency on which the sine sweep is initialized.
@@ -56,8 +57,6 @@ class BuildingAcousticsMeasurement(object):
         self.rx_room_spl = None
         self.reverberation_time = None
         self.transmission_loss = None
-        self.rx_room_background_noise_spl = None
-        self.rx_room_reverberation_time = None
         self.ref_curve = None
 
         self.initialize_room_measurement()

@@ -43,7 +43,8 @@ class info(object):
         timebase_id = Ly.GetTimeBaseIDByName('Driver')
         sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
         sampling_frequency = 1.0 /  float(sample_distance)
-        #print("Sampling Frequency : {0} Hz").format(sampling_frequency)
+        #print("info :: Sampling Frequency : {0}").format(sampling_frequency)
+
 
         self.sampling_frequency = sampling_frequency
         self.low_octave_band = 100.
@@ -53,6 +54,7 @@ class info(object):
         self.probe_signal_freq_l = 100.
         self.probe_signal_freq_h = 10000.
         self.data_acquisition_delay = 2
+        #print("info init :: Sampling Frequency : {0} Hz").format(self.sampling_frequency)
 
 # Temporary variables, not saved with the worksheet
 class pvar(object):
@@ -61,6 +63,7 @@ class pvar(object):
         # Working variables
         # Click on the help button to get more information.
         # Example variables
+        #print("pvar :: Sampling Frequency : {0}").format(sampling_frequency)
         self.generator = Generator(fs=sampling_frequency, duration=probe_signal_duration)
         noise_type = 'sine_sweep'
 
@@ -75,8 +78,8 @@ class pvar(object):
         self.measurement_count = 0
 
         ts = time.time()
-        time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d %H%M%S')
-        self.log_dir = ('{0}/data/{1}').format(ROOT_DIR, time_stamp)
+        time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H%M%S')
+        self.log_dir = ('{0}/data/DasylabTests/{1}').format(ROOT_DIR, time_stamp)
         self.log_file_name = None
         description_file_name = self.log_dir + '/MeasurementDescription.dd'
         measurement_description = str(description)
@@ -145,6 +148,7 @@ class pscript(lys.mclass):
         # Click on the help button to get more information.
         dom = lys.DialogOkManager(dlg)
         dom.SelectModulePage()
+        self.info.sampling_frequency = dom.GetValue("Param sampling_frequency")
         self.info.low_octave_band = dom.GetValue("Param low_octave_band")
         self.info.high_octave_band = dom.GetValue("Param high_octave_band")
         self.info.fraction = dom.GetValue("Param fraction")
@@ -329,7 +333,7 @@ class pscript(lys.mclass):
                 tx_room_spl = self.pvar.building_acoustics_measurement.tx_room_spl
                 rx_room_spl = self.pvar.building_acoustics_measurement.rx_room_spl
                 octave_bands = self.pvar.building_acoustics_measurement.octave_bands
-                print("Reverberation time:\n{0}").format(reverberation_time)
+                #print("Reverberation time:\n{0}").format(reverberation_time)
                 #print("Tx Room SPL:\n{0}").format(tx_room_spl)
                 #print("Rx Room SPL:\n{0}").format(rx_room_spl)
                 #print("Octave bands \n{0}").format(octave_bands)
