@@ -56,12 +56,10 @@ if __name__ == "__main__":
         wavio.write("test_sweep.wav", x, 44100, sampwidth=2)
 
         # Play it and record microphones input simultaneously.
-        reccommand = \
-            "sox -t waveaudio -q --clobber -r 44100 -b 16 -D -c 2 -d record_sweep.wav trim 0 10".split(" ")
+        reccommand = "sox -t waveaudio -q --clobber -r 44100 -b 16 -D -c 2 -d record_sweep.wav trim 0 10".split(" ")
         prec = subprocess.Popen(reccommand, shell=True)
 
-        playcommand = \
-            "sox -q test_sweep.wav -t waveaudio -d".split(" ")
+        playcommand = "sox -q test_sweep.wav -t waveaudio -d".split(" ")
         pplay = subprocess.Popen(playcommand, shell=True)
         pplay.wait()
         prec.wait()
