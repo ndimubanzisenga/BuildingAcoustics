@@ -62,8 +62,8 @@ class Test(object):
         self.spl, self.reverberation_time, self.octave_bands = self.compute_acoustic_parameters(f_start, f_stop, fs)
 
         self.test_acoustic_parameters_measurement()
-        #self.test_generator()
-        plt.show()
+        self.test_generator()
+        #plt.show()
 
     def generate_probe_signal(self, fs, duration, f_start, f_stop, noise_type):
         self._gen = Generator(fs, duration)
@@ -116,10 +116,10 @@ class Test(object):
 
         spectrum = Spectrum()
         frequencies = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction)
-        _, white_noise_octaves_sxx = spectrum.third_octaves(white_noise, self._fs, frequencies=frequencies.center, density=False)
-        _, pink_noise_octaves_sxx = spectrum.third_octaves(pink_noise, self._fs, frequencies=frequencies.center, density=False)
-        _, sine_sweep_octaves_sxx = spectrum.third_octaves(sine_sweep, self._fs, frequencies=frequencies.center, density=False)
-        _, inverse_filter_octaves_sxx = spectrum.third_octaves(inverse_filter, self._fs, frequencies=frequencies.center, density=False)
+        _, white_noise_octaves_sxx, white_noise_octaves_sxx_db = spectrum.third_octaves(white_noise, self._fs, frequencies=frequencies.center, density=False)
+        _, pink_noise_octaves_sxx, pink_noise_octaves_sxx_db = spectrum.third_octaves(pink_noise, self._fs, frequencies=frequencies.center, density=False)
+        _, sine_sweep_octaves_sxx, sine_sweep_octaves_sxx_db = spectrum.third_octaves(sine_sweep, self._fs, frequencies=frequencies.center, density=False)
+        _, inverse_filter_octaves_sxx, inverse_filter_octaves_sxx_db = spectrum.third_octaves(inverse_filter, self._fs, frequencies=frequencies.center, density=False)
 
         white_noise_fft = abs(np.fft.rfft(white_noise))
         pink_noise_fft = abs(np.fft.rfft(pink_noise))
@@ -135,6 +135,15 @@ class Test(object):
                   y_label='Sound pressure mean square [Pa^2]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
         plot_data(y_data=inverse_filter_octaves_sxx, x_data=frequencies.center, title='Inverse Filter Power Spectrum',\
                   y_label='Sound pressure mean square[Pa^2]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
+
+        plot_data(y_data=white_noise_octaves_sxx_db, x_data=frequencies.center, title='White Noise Power Spectrum - dB',\
+                  y_label='Power [dB]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
+        plot_data(y_data=pink_noise_octaves_sxx_db, x_data=frequencies.center, title='Pink Noise Power Spectrum - dB',\
+                  y_label='Power [dB]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
+        plot_data(y_data=sine_sweep_octaves_sxx_db, x_data=frequencies.center, title='Sine Sweep Power Spectrum - dB',\
+                  y_label='Power [dB]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
+        plot_data(y_data=inverse_filter_octaves_sxx_db, x_data=frequencies.center, title='Inverse Filter Power Spectrum - dB',\
+                  y_label='Power [dB]', x_label='Frequency [Hz]', scale='log', args=octave_ticks)
 
         N = int(f_stop  * white_noise_fft.size * 2/self._fs) # index corresponding to f_stop
         fft_freq = np.fft.fftfreq(white_noise.size, 1/self._fs)
