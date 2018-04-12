@@ -221,7 +221,7 @@ class BuildingAcousticsMeasurement(object):
 
         return
 
-    def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30'):
+    def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30', test_octave_band=0):
         """
         Reverberation time from a measured impulse response.
 
@@ -297,4 +297,11 @@ class BuildingAcousticsMeasurement(object):
             db_regress_init = (init - b) / m
             db_regress_end = (end - b) / m
             t60[i] = factor * (db_regress_end - db_regress_init)
+
+            if i == test_octave_band:
+                y_ = m * x + b
+                self.bandpass_filtered_ir = filtered_signal
+                self.schroeder_curve = sch
+                self.regression_result = [x, y, y_]
+
         return t60
