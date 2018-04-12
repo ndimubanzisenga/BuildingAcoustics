@@ -590,7 +590,7 @@ class Spectrum(object):
         :param x: Instantaneous signal :math:`x(t)`.
         :param fs: Sample frequency.
         :param density: Power density instead of power.
-        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second element an array.
+        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second and third elements are arrays.
 
         .. note:: Based on power spectrum (FFT)
 
@@ -606,7 +606,7 @@ class Spectrum(object):
         if density:
             power /= (fob.bandwidth/fnb.bandwidth)
         level = 10.0*np.log10(power / ref**2.0)
-        return fob, level
+        return fob, power, level
 
     def octaves(self, x, fs, density=False,
                 frequencies=NOMINAL_OCTAVE_CENTER_FREQUENCIES,
@@ -618,7 +618,7 @@ class Spectrum(object):
         :param density: Power density instead of power.
         :param frequencies: Frequencies.
         :param ref: Reference value.
-        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second element an array.
+        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second and third elements are arrays.
 
         .. note:: Based on power spectrum (FFT)
 
@@ -634,7 +634,7 @@ class Spectrum(object):
         if density:
             power /= (fob.bandwidth/fnb.bandwidth)
         level = 10.0*np.log10(power / ref**2.0)
-        return fob, level
+        return fob, power, level
 
 
     def fractional_octaves(self, x, fs, start=5.0, stop=16000.0, fraction=3, density=False):
@@ -643,7 +643,7 @@ class Spectrum(object):
         :param x: Instantaneous signal :math:`x(t)`.
         :param fs: Sample frequency.
         :param density: Power density instead of power.
-        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second element an array.
+        :returns: Tuple. First element is an instance of :class:`OctaveBand`. The second and third elements are arrays.
 
         .. note:: Based on power spectrum (FFT)
 
@@ -658,7 +658,7 @@ class Spectrum(object):
         if density:
             power /= (fob.bandwidth/fnb.bandwidth)
         level = 10.0*np.log10(power)
-        return fob, level
+        return fob, power, level
 
     def amplitude_spectrum(self, x, fs, N=None):
         """
