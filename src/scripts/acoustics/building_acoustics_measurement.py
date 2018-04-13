@@ -8,8 +8,6 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
-T_0 = 0.5 # Reference reverberation time
-
 class AcousticParameters(object):
     def __init__(self, bands_number):
         self.L = np.zeros(bands_number)
@@ -50,14 +48,10 @@ class BuildingAcousticsMeasurement(object):
         self._room_acoustic_params = None
         self._rooms_measurements = list()
 
-        self.probe_signal = None
-        self.response_signal = None
         self.octave_bands = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction).center
         self.tx_room_spl = None
         self.rx_room_spl = None
         self.reverberation_time = None
-        self.transmission_loss = None
-        self.ref_curve = None
 
         self.initialize_room_measurement()
 
@@ -105,7 +99,6 @@ class BuildingAcousticsMeasurement(object):
         if (room is not 'tx') and (room is not 'rx'):
             raise ValueError("Room parameter should take values {'tx', 'rx'}")
 
-        self.response_signal = signal
         f_start = self._f_start
         f_stop = self._f_stop
         fraction = self._fraction
@@ -152,47 +145,43 @@ class BuildingAcousticsMeasurement(object):
         #self._room_acoustic_params.average_T(reverberation_time)
         return
 
-    def DnT(self):
-        D = self.compute_transmission_loss()
-        T = self._rooms_measurements[1].T
+    def DnT(self, T_0=0.5):
+        """
+        Calculate the Standardized Sound Level Difference (D_nT).
+        """
+        D = self.tx_room_spl - self.rx_room_spl
         Ln = self._rooms_measurements[1].Ln
+        T = self.reverberation_time
+        if np.alltrue(T == 0):
+            # If reverberation_time has not been estimated set its value to 0.5 sec for all frequency bands
+            # ToDo: Better logic to check whether reverberation_time has been estimated
+            T += T_0
+        D_nT = D + 10 * np.log10(T / T_0)
 
-        DnT = D + 10 * np.log10(T / T_0)
+        return D_nT
 
-        return DnT
-
-    def compute_transmission_loss(self):
+    def R(self, S, V):
         """
-        Compute the transmission loss, given the spl in the Transmitting and Receiving room has been computed.
+        Calculate the Apparent Sound Reduction Index (R').
+
+        :param S: area of the common partition between the source and the receiving room in {m^2}.
+        :param V: volume of the receiving room in {m^3}.
         """
-        if (len(self._rooms_measurements) is not 2):
-            raise ValueError("Measurements from both the Transmitting and Receiving rooms are not avaliable")
-        self.transmission_loss = self.tx_room_spl - self.rx_room_spl
+        D = self.tx_room_spl - self.rx_room_spl
+        Ln = self._rooms_measurements[1].Ln
+        T = self.reverberation_time
+        T_ref = 0.5
+        # If reverberation_time has not estimated for a frequency band, set its value to 0.5 sec. This also avoids division by zero.
+        # ToDo: investigate which value is best as default value instead of 0.5
+        for i in xrange(T.size):
+            if T[i] == 0:
+                T[i] = T_ref
+        A = 0.16 * (V / T)
+        R = D + 10 * log(S / A)
 
-        return
+        return R
 
-    def get_reference_curve(self, Rw_nominal, f_start=None, f_stop=None, fraction=3, weighting=None):
-        """
-        Calculate the reference curve from a single number Rw nominal value.
-
-        :param Rw_nominal: single number descriptor threshold defined by the building acoustics regulations.
-        :param weigthing: the weigthing to apply.
-
-        Return the reference rw curve for the specified frequency range
-        """
-        if (f_start is not None) and (f_stop is not None):
-            frequencies = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction)
-            octave_bands = frequencies.center
-        elif (self.octave_bands is not None):
-            octave_bands = self.octave_bands
-        else:
-            raise ValueError("The frequency range to consider must be set")
-
-        ref_curve = None
-
-        return ref_curve
-
-    def rw_curve(self, transmission_loss=None):
+    def compute_single_number(self, transmission_loss):
         """
         Calculate the reference curve of :math:`Rw` from a NumPy array `transmission_loss` with third
         octave data between 100 Hz and 3.15 kHz.
@@ -200,26 +189,39 @@ class BuildingAcousticsMeasurement(object):
         :param transmission_loss: Transmission Loss
 
         """
-        if (transmission_loss is not None):
-            t = transmission_loss
-        elif (self.transmission_loss is not None):
-            t = self.transmission_loss
-        else:
-            raise ValueError("The transmission loss curve must be set")
+        t = transmission_loss
 
         ref_curve = np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]]) #ToDo: Function to compute the reference curve for a dynamic freq. range
-        # ref_curve = self.get_reference_curve(Rw_nominal)
+
+        # Workaround to handle actave bands beyond 3150 Hz center.
+        # ToDo: Handle  center frequencies beyond the range [100., 3150.] for octave and third_octaves.
+        if t.size > ref_curve.size:
+            t = t[:ref_curve.size]
+        elif t.size < ref_curve.size:
+            ref_curve = ref_curve[:t.size]
+
+        # Check which direction to move the ref_curve
+        direction = np.sign(np.sum(t - ref_curve))
+
         residuals_sum = 0
 
-        while residuals_sum > -32:
-            ref_curve += 1
-            diff = t - ref_curve
-            residuals = np.clip(diff, np.min(diff), 0)
-            residuals_sum = np.sum(residuals)
+        if direction > 0:
+            # Move the ref_curve updward towards the transmission_loss curve
+            while residuals_sum > -32:
+                ref_curve += 1
+                diff = t - ref_curve
+                residuals = direction * np.clip(diff, np.min(diff), 0)
+                residuals_sum = np.sum(residuals)
+        else:
+            # Move the ref_curve downward towards the transmission_loss curve
+            while residuals_sum < -32:
+                ref_curve -= 1
+                diff = t - ref_curve
+                residuals = direction * np.clip(diff, np.min(diff), 0)
+                residuals_sum = np.sum(residuals)
         ref_curve -= 1
-        self.ref_curve = ref_curve
 
-        return
+        return ref_curve[0,7], ref_curve
 
     def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30', test_octave_band=0):
         """
@@ -231,13 +233,8 @@ class BuildingAcousticsMeasurement(object):
 
         """
         if (measured_impulse_response is None):
-            if (self.probe_signal is not None) and (self.response_signal is not None):
-                # ToDo: Derive the impulse respnse from the probe signal and the measured response signal
-                #       Currently the impulse response is just equated to the measured response signal.
-                measured_impulse_response = self.response_signal
-            else:
-                raise ValueError("The measused impulse response must be set. Otherwise the probe and response\
-                                   signals must be set in order to derive the impulse response")
+            raise ValueError("The measused impulse response must be set. Otherwise the probe and response\
+                              signals must be set in order to derive the impulse response")
 
         if (fs is None):
             if (self._fs is not None):
