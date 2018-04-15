@@ -71,7 +71,7 @@ class Test(object):
         self.spl, self.reverberation_time, self.octave_bands = self.compute_acoustic_parameters(f_start, f_stop, fs)
 
         self.test_acoustic_parameters_measurement()
-        self.test_generator()
+        # self.test_generator()
         # plt.show()
 
     def generate_probe_signal(self, fs, duration, f_start, f_stop, noise_type):
@@ -143,10 +143,10 @@ class Test(object):
         _, inverse_filter_octaves_sxx, inverse_filter_octaves_sxx_db = spectrum.third_octaves(
             inverse_filter, self._fs, frequencies=frequencies.center, density=False)
 
-        white_noise_fft = abs(np.fft.rfft(white_noise))
-        pink_noise_fft = abs(np.fft.rfft(pink_noise))
-        sine_sweep_fft = abs(np.fft.rfft(sine_sweep))
-        inverse_filter_fft = abs(np.fft.rfft(inverse_filter))
+        white_noise_fft = abs(np.fft.rfft(white_noise)) / white_noise.size
+        pink_noise_fft = abs(np.fft.rfft(pink_noise)) / pink_noise.size
+        sine_sweep_fft = abs(np.fft.rfft(sine_sweep)) / sine_sweep.size
+        inverse_filter_fft = abs(np.fft.rfft(inverse_filter)) / inverse_filter.size
 
         octave_ticks = np.asarray(frequencies.center, dtype=np.int)[::2]
         plot_data(y_data=white_noise_octaves_sxx, x_data=frequencies.center, title='White Noise Power Spectrum',
@@ -170,13 +170,13 @@ class Test(object):
         N = int(f_stop * white_noise_fft.size * 2 / self._fs)  # index corresponding to f_stop
         fft_freq = np.fft.fftfreq(white_noise.size, 1 / self._fs)
         fft_freq = fft_freq[:N]
-        plot_data(y_data=white_noise_fft[:N], x_data=fft_freq, title='White Noise Spectrum', y_label='Sound pressure [Pa]',
+        plot_data(y_data=white_noise_fft[:N], x_data=fft_freq, title='White Noise Amplitude Spectrum', y_label='Sound pressure [Pa]',
                   x_label='Frequency [Hz]', scale='linear')
-        plot_data(y_data=pink_noise_fft[:N], x_data=fft_freq, title='Pink Noise Spectrum', y_label='Sound pressure [Pa]',
+        plot_data(y_data=pink_noise_fft[:N], x_data=fft_freq, title='Pink Noise Amplitude Spectrum', y_label='Sound pressure [Pa]',
                   x_label='Frequency [Hz]', scale='linear')
-        plot_data(y_data=sine_sweep_fft[:N], x_data=fft_freq, title='Sine Sweep Spectrum', y_label='Sound pressure [Pa]',
+        plot_data(y_data=sine_sweep_fft[:N], x_data=fft_freq, title='Sine Sweep Amplitude Spectrum', y_label='Sound pressure [Pa]',
                   x_label='Frequency [Hz]', scale='linear')
-        plot_data(y_data=inverse_filter_fft[:N], x_data=fft_freq, title='Inverse Filter Spectrum', y_label='Sound pressure [Pa]',
+        plot_data(y_data=inverse_filter_fft[:N], x_data=fft_freq, title='Inverse Filter Amplitude Spectrum', y_label='Sound pressure [Pa]',
                   x_label='Frequency [Hz]', scale='linear')
 
     def test_acoustic_parameters_measurement(self):
@@ -239,8 +239,7 @@ class Test(object):
 
 
 def main():
-    # rr_log_file = ROOT_DIR + 'data/StandaloneTests/2018-04-15-114854/room_response.wav'
-    rr_log_file = None
+    rr_log_file = ROOT_DIR + 'data/StandaloneTests/2018-04-15-195326/room_response.wav'
     t = Test(reused_file=rr_log_file)
     print("## Ended Successfully ##")
 
