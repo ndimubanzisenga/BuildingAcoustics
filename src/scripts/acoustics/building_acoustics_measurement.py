@@ -8,10 +8,14 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
+<<<<<<< HEAD
+=======
+ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+>>>>>>> 91f266fe9d0db9b339f0dee01718557e4e62b0e7
 
 def load_regulations():
     import json
-    regulations_file = '../../../data/building_acoustics_regulations_germany.json'
+    regulations_file = ROOT_DIR + '/data/building_acoustics_regulations_germany.json'
     data = None
 
     with open(regulations_file) as json_data_file:
