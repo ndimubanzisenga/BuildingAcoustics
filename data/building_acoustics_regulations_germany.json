@@ -2,29 +2,29 @@
   "ResidentialAndOffice" : {
     "MultiStorey" : {
       "Ceiling" : 53,
-      "wall" : 54,
+      "Wall" : 54,
       "Door" : 32
     },
     "DetachedHouse" : {
       "Ceiling" : 0,
-      "wall" : 60,
+      "Wall" : 60,
       "Door" : 0
     }
   },
   "NonResidential" : {
     "Hotel" : {
       "Ceiling" : 54,
-      "wall" : 47,
+      "Wall" : 47,
       "Door" : 32
     },
     "Hospital" : {
       "Ceiling" : 54,
-      "wall" : 47,
+      "Wall" : 47,
       "Door" : 35
     },
     "School" : {
       "Ceiling" : 57,
-      "wall" : 55,
+      "Wall" : 55,
       "Door" : 35
     }
   }
