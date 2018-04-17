@@ -342,8 +342,14 @@ class pscript(lys.mclass):
 
                 if self.pvar.tx_room_measured and self.pvar.rx_room_measured:
                     D_nT = self.pvar.building_acoustics_measurement.DnT()
-                    D_nT_w, ref_curve = self.pvar.building_acoustics_measurement.compute_single_number(D_nT)
+                    D_nT_w, _ = self.pvar.building_acoustics_measurement.compute_single_number(D_nT)
                     Ly.SetVar(2, D_nT_w)
+
+                    S = Ly.GetVar(4)
+                    V = Ly.GetVar(5)
+                    R = self.pvar.building_acoustics_measurement.R(S, V)
+                    R_w, ref_curve = self.pvar.building_acoustics_measurement.compute_single_number(R)
+                    Ly.SetVar(3, R_w)
 
                     D_nT = dilateArray(D_nT, block_size)
                     D_nT_out_buffer = self.GetOutputBlock(1)
