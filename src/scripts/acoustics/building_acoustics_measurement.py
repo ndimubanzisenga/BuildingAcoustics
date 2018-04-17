@@ -8,6 +8,16 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
+def load_regulations():
+    import json
+    regulations_file = '../../../data/building_acoustics_regulations_germany.json'
+    data = None
+
+    with open(regulations_file) as json_data_file:
+        data = json.load(json_data_file)
+    return data
+
+
 class AcousticParameters(object):
     def __init__(self, bands_number):
         self.L = np.zeros(bands_number)
@@ -55,20 +65,6 @@ class BuildingAcousticsMeasurement(object):
 
         self.initialize_room_measurement()
 
-
-    def compute_building_acoustics_parameters(self):
-        """
-        Calculate building acoustics parameters: The Transmitting room and Receiving room spl,
-        the background noise level and reverberation time.
-        """
-        pass
-
-    def verify_building_acoustics_regulation(self):
-        pass
-
-    def diagnose_defect(self):
-        pass
-
     def initialize_room_measurement(self):
         self._rooms_measurements = list()
         bands_number = self.octave_bands.size
@@ -77,12 +73,36 @@ class BuildingAcousticsMeasurement(object):
         self._rooms_measurements.append(tx_room_acoustic_params)
         self._rooms_measurements.append(rx_room_acoustic_params)
         self.update_attributes()
+        self._regulatations = load_regulations()
         #self._room_acoustic_params = AcousticParameters(bands_number)
         return
 
     def finalize_room_measurement(self):
         self._rooms_measurements.append(self._room_acoustic_params)
         return
+
+    def compute_building_acoustics_parameters(self):
+        """
+        Calculate building acoustics parameters: The Transmitting room and Receiving room spl,
+        the background noise level and reverberation time.
+        """
+        pass
+
+    def verify_building_acoustics_regulation(self, Rw, building_use, building_type, test_element_type):
+        """
+        Verify whether the measured building performance complies with the building acoustics regulations.
+        :param building_use: Usage of the building being tested. Possible values are : {'ResidentialAndOffice', 'NonResidential'}.
+        :param building_type: Type of the building being tested. Possible values are : {'MultiStorey', 'DetachedHouse',\
+                              'Hotel', 'Hospital', 'School' }.
+        :param test_element_type: Type of the building element under test. Possible values : {'Ceiling', 'Wall', 'Door'}
+
+        :return status: Status of the building element under test in regards to the building acoustics regulation.
+        """
+        Rw_nominal = self._regulatations[building_use][building_type][test_element_type]
+        return status
+
+    def diagnose_defect(self):
+        pass
 
     def update_attributes(self):
         self.tx_room_spl = self._rooms_measurements[0].L
@@ -177,7 +197,7 @@ class BuildingAcousticsMeasurement(object):
             if T[i] == 0:
                 T[i] = T_ref
         A = 0.16 * (V / T)
-        R = D + 10 * log(S / A)
+        R = D + 10 * np.log10(S / A)
 
         return R
 
@@ -222,6 +242,42 @@ class BuildingAcousticsMeasurement(object):
         ref_curve -= 1
 
         return ref_curve[0,7], ref_curve
+
+    def compute_adaptation_terms(self, tl, single_number):
+        """
+        Calculate the adaptation term as defined in ISO 717-1.
+
+        :param tl: Transmission loss
+        :param single_number: Measured single number quantity. Can be DnT,w or Rw.
+        """
+        c = int(round(self.rw_c(tl) - single_number))
+        c_tr = int(round(self.rw_ctr(tl) - single_number))
+        return c, c_tr
+
+    def rw_c(self, tl):
+        """
+        Calculate :math:`R_W + C` from a NumPy array `tl` with third octave data
+        between 100 Hz and 3.15 kHz.
+
+        :param tl: Transmission Loss
+        """
+        k = np.array([-29, -26, -23, -21, -19, -17, -15, -13, -12, -11, -10, -9,
+                      -9, -9, -9, -9])
+        a = -10 * np.log10(np.sum(10**((k - tl)/10)))
+        return a
+
+
+    def rw_ctr(self, tl):
+        """
+        Calculate :math:`R_W + C_{tr}` from a NumPy array `tl` with third octave
+        data between 100 Hz and 3.15 kHz.
+
+        :param tl: Transmission Loss
+        """
+        k_tr = np.array([-20, -20, -18, -16, -15, -14, -13, -12, -11, -9, -8, -9,
+                         -10, -11, -13, -15])
+        a_tr = -10 * np.log10(np.sum(10**((k_tr - tl)/10)))
+        return a_tr
 
     def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30', test_octave_band=0):
         """
