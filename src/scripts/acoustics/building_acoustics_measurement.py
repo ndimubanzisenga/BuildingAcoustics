@@ -8,6 +8,7 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
+
 def load_regulations():
     import json
     regulations_file = '../../../data/building_acoustics_regulations_germany.json'
@@ -44,7 +45,7 @@ class AcousticParameters(object):
 
 class BuildingAcousticsMeasurement(object):
     def __init__(self, fs=44100, f_start=50., f_stop=5000., fraction=3):
-        ### ToDo Generalize to multiple channels measurement
+        # ToDo Generalize to multiple channels measurement
         """
         :param fs: sampling frequency
         :param f_start: Minimum frequency on which the sine sweep is initialized.
@@ -75,6 +76,7 @@ class BuildingAcousticsMeasurement(object):
         self.update_attributes()
         self._regulatations = load_regulations()
         #self._room_acoustic_params = AcousticParameters(bands_number)
+
         return
 
     def finalize_room_measurement(self):
@@ -88,9 +90,11 @@ class BuildingAcousticsMeasurement(object):
         """
         pass
 
-    def verify_building_acoustics_regulation(self, Rw, building_use, building_type, test_element_type):
+    def verify_building_acoustics_regulation(self, Rw, tolerance, building_use, building_type, test_element_type):
         """
         Verify whether the measured building performance complies with the building acoustics regulations.
+        :param Rw: measured  sound reduction index single number.
+        :param tolerance: tolerance in dB by which the measured Rw can deviate from the nominal Rw.
         :param building_use: Usage of the building being tested. Possible values are : {'ResidentialAndOffice', 'NonResidential'}.
         :param building_type: Type of the building being tested. Possible values are : {'MultiStorey', 'DetachedHouse',\
                               'Hotel', 'Hospital', 'School' }.
@@ -98,7 +102,18 @@ class BuildingAcousticsMeasurement(object):
 
         :return status: Status of the building element under test in regards to the building acoustics regulation.
         """
+        status = None
         Rw_nominal = self._regulatations[building_use][building_type][test_element_type]
+        diff = Rw - Rw_nominal
+        if (diff > 0) and (abs(diff) > tolerance):
+            status = 1
+        elif (diff > 0) and (abs(diff) < tolerance):
+            status = 0
+        elif (diff < 0) and (abs(diff) < tolerance):
+            status = 0
+        elif (diff < 0) and (abs(diff) > tolerance):
+            status = -1
+
         return status
 
     def diagnose_defect(self):
@@ -131,7 +146,7 @@ class BuildingAcousticsMeasurement(object):
         elif room is 'rx':
             self._rooms_measurements[1].average_L(octaves_power_levels)
         self.update_attributes()
-        #self._room_acoustic_params.average_L(octaves_power_levels)
+        # self._room_acoustic_params.average_L(octaves_power_levels)
         return
 
     def compute_reverberation_time(self, room, signal=None, fs=None, method='impulse', args=None):
@@ -162,7 +177,7 @@ class BuildingAcousticsMeasurement(object):
         elif room is 'rx':
             self._rooms_measurements[1].average_T(reverberation_time)
         self.update_attributes()
-        #self._room_acoustic_params.average_T(reverberation_time)
+        # self._room_acoustic_params.average_T(reverberation_time)
         return
 
     def DnT(self, T_0=0.5):
@@ -211,7 +226,8 @@ class BuildingAcousticsMeasurement(object):
         """
         t = transmission_loss
 
-        ref_curve = np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]]) #ToDo: Function to compute the reference curve for a dynamic freq. range
+        # ToDo: Function to compute the reference curve for a dynamic freq. range
+        ref_curve = np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]])
 
         # Workaround to handle actave bands beyond 3150 Hz center.
         # ToDo: Handle  center frequencies beyond the range [100., 3150.] for octave and third_octaves.
@@ -241,7 +257,7 @@ class BuildingAcousticsMeasurement(object):
                 residuals_sum = np.sum(residuals)
         ref_curve -= 1
 
-        return ref_curve[0,7], ref_curve
+        return ref_curve[0, 7], ref_curve
 
     def compute_adaptation_terms(self, tl, single_number):
         """
@@ -263,9 +279,8 @@ class BuildingAcousticsMeasurement(object):
         """
         k = np.array([-29, -26, -23, -21, -19, -17, -15, -13, -12, -11, -10, -9,
                       -9, -9, -9, -9])
-        a = -10 * np.log10(np.sum(10**((k - tl)/10)))
+        a = -10 * np.log10(np.sum(10**((k - tl) / 10)))
         return a
-
 
     def rw_ctr(self, tl):
         """
@@ -276,7 +291,7 @@ class BuildingAcousticsMeasurement(object):
         """
         k_tr = np.array([-20, -20, -18, -16, -15, -14, -13, -12, -11, -9, -8, -9,
                          -10, -11, -13, -15])
-        a_tr = -10 * np.log10(np.sum(10**((k_tr - tl)/10)))
+        a_tr = -10 * np.log10(np.sum(10**((k_tr - tl) / 10)))
         return a_tr
 
     def t60_impulse(self, measured_impulse_response=None, fs=None, rt='t30', test_octave_band=0):
@@ -330,7 +345,8 @@ class BuildingAcousticsMeasurement(object):
 
         for i in range(bands.center.size):
             # Filtering signal
-            filtered_signal = signal_processor.bandpass(measured_impulse_response, bands.lower[i], bands.upper[i], fs, order=8)
+            filtered_signal = signal_processor.bandpass(
+                measured_impulse_response, bands.lower[i], bands.upper[i], fs, order=8)
             abs_signal = np.abs(filtered_signal) / np.max(np.abs(filtered_signal))
 
             # Schroeder integration
@@ -344,7 +360,7 @@ class BuildingAcousticsMeasurement(object):
             end_sample = np.where(sch_db == sch_end)[0][0]
             x = np.arange(init_sample, end_sample + 1) / fs
             y = sch_db[init_sample: end_sample + 1]
-            m, b, r_value, p_value, std_err = stats.linregress(x,y) # y = m*x + b
+            m, b, r_value, p_value, std_err = stats.linregress(x, y)  # y = m*x + b
 
             # Reverberation time (T30, T20, T10 or EDT)
             db_regress_init = (init - b) / m
