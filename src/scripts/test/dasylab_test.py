@@ -196,7 +196,7 @@ class pscript(lys.mclass):
         # Initialize global variables
         Ly.SetVar(2, 0.) # DnT,w
         Ly.SetVar(3, 0.) # R'w
-        Ly.SetVar(9, 0.) # violation_status
+        Ly.SetVar(9, 5.) # violation_status
         Ly.SetVar(13, 0.) # Source room selector
         Ly.SetVar(14, 0.) # Receiving room selector
 
