@@ -11,8 +11,8 @@ from scipy.interpolate import UnivariateSpline
 
 LOG_DATA = False
 ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
-BUILDING_TYPES = {1: 'MultiStorey', 2: 'DetachedHouse', 3: 'Hotel', 4: 'Hospital', 5: 'School'}
-ELEMENT_TYPES = {1: 'Ceiling', 2: 'Wall', 3: 'Door'}
+BUILDING_TYPES = {0: 'MultiStorey', 1: 'DetachedHouse', 2: 'Hotel', 3: 'Hospital', 4: 'School'}
+ELEMENT_TYPES = {0: 'Ceiling', 1: 'Wall', 2: 'Door'}
 
 sys.path.append(ROOT_DIR + 'src/scripts')
 from acoustics.building_acoustics_measurement import BuildingAcousticsMeasurement
@@ -114,6 +114,8 @@ class pscript(lys.mclass):
         self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,
                          self.info.probe_signal_freq_h, self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
         Ly.SetVar(2, 0.)
+        Ly.SetVar(3, 0.)
+        Ly.SetVar(9, 0.)
         print("## Initialized module.... ##")
 
     def Create(self):
@@ -364,11 +366,10 @@ class pscript(lys.mclass):
                     R_w, ref_curve = self.pvar.building_acoustics_measurement.compute_single_number(R)
                     Ly.SetVar(3, R_w)
 
-                    # ToDo: Verify the global variable number for building type and test element type
-                    tolerance = 0
                     building = int(Ly.GetVar(6))
                     test_element = int(Ly.GetVar(7))
-                    # ToDo: remove this hack, and Generalize
+                    tolerance = Ly.GetVar(9)
+                    # ToDo: remove this hack, and Generalize to get building usage
                     if building < 2:
                         building_use = 'ResidentialAndOffice'
                     else:
@@ -376,6 +377,7 @@ class pscript(lys.mclass):
 
                     violation_status = self.pvar.building_acoustics_measurement.verify_building_acoustics_regulation(
                         R_w, tolerance, building_use, BUILDING_TYPES[building], ELEMENT_TYPES[test_element])
+                    Ly.SetVar(9, violation_status)
 
                     D_nT = dilateArray(D_nT, block_size)
                     D_nT_out_buffer = self.GetOutputBlock(1)
