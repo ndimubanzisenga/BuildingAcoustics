@@ -8,7 +8,12 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
-ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+# ROOT_DIR = ""
+from sys import platform
+if platform == "win32":
+    ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+elif platform == "linux2":
+    ROOT_DIR = '../../../'
 
 
 def load_regulations():
@@ -108,13 +113,13 @@ class BuildingAcousticsMeasurement(object):
         Rw_nominal = self._regulatations[building_use][building_type][test_element_type]
         diff = Rw - Rw_nominal
         if (diff > 0) and (abs(diff) > tolerance):
-            status = 1
+            status = 5
         elif (diff > 0) and (abs(diff) < tolerance):
             status = 0
         elif (diff < 0) and (abs(diff) < tolerance):
             status = 0
         elif (diff < 0) and (abs(diff) > tolerance):
-            status = -1
+            status = -5
 
         return status
 
