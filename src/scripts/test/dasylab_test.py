@@ -9,7 +9,6 @@ import datetime
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
-LOG_DATA = False
 ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
 BUILDING_TYPES = {0: 'MultiStorey', 1: 'DetachedHouse', 2: 'Hotel', 3: 'Hospital', 4: 'School'}
 ELEMENT_TYPES = {0: 'Ceiling', 1: 'Wall', 2: 'Door'}
@@ -46,68 +45,69 @@ class info(object):
         # Variables for settings
         # Click on the help button to get more information.
         # Example variables
-
-        timebase_id = Ly.GetTimeBaseIDByName('Driver')
-        sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
-        sampling_frequency = 1.0 / float(sample_distance)
-
-        self.sampling_frequency = sampling_frequency
-        self.low_octave_band = 100.
-        self.high_octave_band = 3150.
-        self.fraction = 3
-        self.probe_signal_duration = 10.
-        self.probe_signal_freq_l = 100.
-        self.probe_signal_freq_h = 10000.
-        self.data_acquisition_delay = 2
+        pass
 
 
 # Temporary variables, not saved with the worksheet
 class pvar(object):
-    def __init__(self, sampling_frequency, probe_signal_duration, probe_signal_freq_l=100., probe_signal_freq_h=15000.,
-                 low_octave_band=100., high_octave_band=3150., fraction=3, description=''):
+    def __init__(self, probe_signal_duration=10., probe_signal_freq_l=100., probe_signal_freq_h=10000.,
+                 low_octave_band=100., high_octave_band=3150., fraction=3, data_acquisition_delay=2, measurement_description=''):
         # Working variables
         # Click on the help button to get more information.
         # Example variables
-        self.generator = Generator(fs=sampling_frequency, duration=probe_signal_duration)
-        noise_type = 'sine_sweep'
+        self.low_octave_band = low_octave_band
+        self.high_octave_band = high_octave_band
+        self.fraction = fraction
+        self.probe_signal_duration = probe_signal_duration
+        self.probe_signal_freq_l = probe_signal_freq_l
+        self.probe_signal_freq_h = probe_signal_freq_h
+        self.data_acquisition_delay = data_acquisition_delay
+        self.measurement_description =  measurement_description
+        self.initialize_test()
 
-        if noise_type == 'sine_sweep':
-            self.probe_signal, self.reverse_signal = self.generator.noise(
-                noise_type, [probe_signal_freq_l, probe_signal_freq_h])
+    def get_sampling_frequency(self):
+        timebase_id = Ly.GetTimeBaseIDByName('Driver')
+        sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
+        sampling_frequency = 1.0 / float(sample_distance)
+
+        return sampling_frequency
+
+    def initialize_test_signal(self, signal_type='sine_sweep'):
+        self.sampling_frequency = self.get_sampling_frequency()
+
+        self.signal_type = signal_type
+        self.generator = Generator(fs=self.sampling_frequency, duration=self.probe_signal_duration)
+        if signal_type == 'sine_sweep':
+            self.probe_signal, self.reverse_signal = self.generator.noise(signal_type, args=[self.probe_signal_freq_l, self.probe_signal_freq_h])
         else:
-            self.probe_signal = self.generator.noise(noise_type)
+            self.probe_signal = self.generator.noise(signal_type)
+
+        return
+
+    def initialize_measurement(self):
         self.room_response = None
-        self.building_acoustics_measurement = BuildingAcousticsMeasurement(fs=sampling_frequency, f_start=low_octave_band,
-                                                                           f_stop=high_octave_band, fraction=fraction)
-        self.block_count = 0
-        self.measurement_count = 0
         self.tx_room_measured = False
         self.rx_room_measured = False
-        self.log_file_name = None
+        self.block_count = 0
+        self.measurement_count = 0
+        self.building_acoustics_measurement = BuildingAcousticsMeasurement(fs=self.sampling_frequency, f_start=self.low_octave_band,
+                                                                           f_stop=self.high_octave_band, fraction=self.fraction)
+        return
 
-        if LOG_DATA:
-            ts = time.time()
-            time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H%M%S')
-            self.log_dir = ('{0}/data/DasylabTests/{1}').format(ROOT_DIR, time_stamp)
+    def initialize_test(self):
+        self.initialize_test_signal()
+        self.initialize_measurement()
 
-            description_file_name = self.log_dir + '/MeasurementDescription.dd'
-            measurement_description = str(description)
-            measurement_description += ('Sampling Frequency : {0}\n').format(sampling_frequency)
-            measurement_description += ('Signal Duration : {0}\n').format(probe_signal_duration)
-            measurement_description += ('Noise Type : {0}\n').format(noise_type)
-            measurement_description += ('Lowest Generated Frequency : {0}\n').format(probe_signal_freq_l)
-            measurement_description += ('Highest Generated Frequency : {0}\n').format(probe_signal_freq_h)
-            measurement_description += ('Lowest Octave Band : {0}\n').format(low_octave_band)
-            measurement_description += ('Highest Octave Band : {0}\n').format(high_octave_band)
-            log_data(description_file_name, measurement_description)
+        return
 
 
 class pscript(lys.mclass):
     def __init__(self, magic):
         print("## Initializing module.... ##")
         self.info = info()
-        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,
-                         self.info.probe_signal_freq_h, self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
+        self.pvar = pvar()
+        self.log_dir = None
+
         Ly.SetVar(2, 0.)
         Ly.SetVar(3, 0.)
         Ly.SetVar(9, 0.)
@@ -130,27 +130,27 @@ class pscript(lys.mclass):
 
         # Set dialog title
         dlg.title = "Script (Bulding Acoustic Meas.)"
+
         # Determine the number of channels, current channel and
         # maximum number of channels
-        # (Covers 1:1 channel relation with at least one input.
-        # You need to adjust this section if you have chosen another relation
-        # setting. You can find more information how to do this in the help)
+        # (Covers 1:1 channel relation with at least one input.)
         self.DlgNumChannels = self.NumInChannel
         self.DlgMaxChannels = Ly.MAX_CHANNELS
+
         # Setup dialog parameters
         dm = lys.DialogManager(self, dlg)
         dm.SelectModulePage()
-        dm.AppendFloat("Param sampling_frequency", self.info.sampling_frequency,
+        dm.AppendFloat("Param sampling_frequency", self.pvar.sampling_frequency,
                        "Sampling frequency with which the signal is to be generated and measured")
-        dm.AppendFloat("Param low_octave_band", self.info.low_octave_band, "Lowest octave band center frequency")
-        dm.AppendFloat("Param high_octave_band", self.info.high_octave_band, "Highest octave band center frequency")
-        dm.AppendFloat("Param fraction", self.info.fraction, "Octave band fraction")
-        dm.AppendFloat("Param probe_signal_duration", self.info.probe_signal_duration, "Duration of the probe signal")
-        dm.AppendFloat("Param probe_signal_freq_l", self.info.probe_signal_freq_l,
+        dm.AppendFloat("Param low_octave_band", self.pvar.low_octave_band, "Lowest octave band center frequency")
+        dm.AppendFloat("Param high_octave_band", self.pvar.high_octave_band, "Highest octave band center frequency")
+        dm.AppendFloat("Param fraction", self.pvar.fraction, "Octave band fraction")
+        dm.AppendFloat("Param probe_signal_duration", self.pvar.probe_signal_duration, "Duration of the probe signal")
+        dm.AppendFloat("Param probe_signal_freq_l", self.pvar.probe_signal_freq_l,
                        "Lowest frequency of the probe signal")
-        dm.AppendFloat("Param probe_signal_freq_h", self.info.probe_signal_freq_h,
+        dm.AppendFloat("Param probe_signal_freq_h", self.pvar.probe_signal_freq_h,
                        "Highest frequency of the probe signal")
-        dm.AppendFloat("Param data_acquisition_delay", self.info.data_acquisition_delay,
+        dm.AppendFloat("Param data_acquisition_delay", self.pvar.data_acquisition_delay,
                        "Delay in blocks after which to start data acquisition")
 
     def DlgOk(self, dlg):
@@ -158,17 +158,17 @@ class pscript(lys.mclass):
         # Click on the help button to get more information.
         dom = lys.DialogOkManager(dlg)
         dom.SelectModulePage()
-        self.info.sampling_frequency = dom.GetValue("Param sampling_frequency")
-        self.info.low_octave_band = dom.GetValue("Param low_octave_band")
-        self.info.high_octave_band = dom.GetValue("Param high_octave_band")
-        self.info.fraction = dom.GetValue("Param fraction")
-        self.info.probe_signal_duration = dom.GetValue("Param probe_signal_duration")
-        self.info.probe_signal_freq_l = dom.GetValue("Param probe_signal_freq_l")
-        self.info.probe_signal_freq_h = dom.GetValue("Param probe_signal_freq_h")
-        self.info.data_acquisition_delay = dom.GetValue("Param data_acquisition_delay")
 
-        self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,
-                         self.info.probe_signal_freq_h, self.info.low_octave_band, self.info.high_octave_band, self.info.fraction)
+        # self.pvar.sampling_frequency = dom.GetValue("Param sampling_frequency")
+        self.pvar.low_octave_band = dom.GetValue("Param low_octave_band")
+        self.pvar.high_octave_band = dom.GetValue("Param high_octave_band")
+        self.pvar.fraction = dom.GetValue("Param fraction")
+        self.pvar.probe_signal_duration = dom.GetValue("Param probe_signal_duration")
+        self.pvar.probe_signal_freq_l = dom.GetValue("Param probe_signal_freq_l")
+        self.pvar.probe_signal_freq_h = dom.GetValue("Param probe_signal_freq_h")
+        self.pvar.data_acquisition_delay = dom.GetValue("Param data_acquisition_delay")
+
+        self.pvar.initialize_test()
 
         # Configure Inputs and Outputs
         # (Covers 1:1 channel relation with at least one input.
@@ -194,11 +194,35 @@ class pscript(lys.mclass):
     def Start(self):
         # Initialize variables on start of measurement (if needed)
         # Click on the help button to get more information.
-        print("## Reinitializing module.... ##")
-        self.pvar.building_acoustics_measurement.initialize_room_measurement()
-        self.pvar.room_response = None
-        self.pvar.block_count = 0
-        print("## Reinitialized module.... ##")
+        # self.pvar.initialize_measurement()
+
+        # print (" Start - before fix:: FS = {0}").format(self.pvar.sampling_frequency)
+
+        # Handle the mismatch of sampling_frequency when worksheet is loaded.
+        # ToDo: Fin permanent solution.
+        if (self.pvar.sampling_frequency != self.pvar.get_sampling_frequency()):
+            self.pvar.initialize_test()
+        else:
+            self.pvar.initialize_measurement()
+
+        # print (" Start - after fix:: FS = {0}").format(self.pvar.sampling_frequency)
+        self._LOG_DATA = Ly.GetVar(12)
+
+        if self._LOG_DATA:
+            ts = time.time()
+            time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H%M%S')
+            self.log_dir = ('{0}/data/DasylabTests/{1}').format(ROOT_DIR, time_stamp)
+
+            description_file_name = self.log_dir + '/MeasurementDescription.dd'
+            measurement_description = str(self.pvar.measurement_description)
+            measurement_description += ('Sampling Frequency : {0}\n').format(self.pvar.sampling_frequency)
+            measurement_description += ('Signal Duration : {0}\n').format(self.pvar.probe_signal_duration)
+            measurement_description += ('Noise Type : {0}\n').format(self.pvar.signal_type)
+            measurement_description += ('Lowest Generated Frequency : {0}\n').format(self.pvar.probe_signal_freq_l)
+            measurement_description += ('Highest Generated Frequency : {0}\n').format(self.pvar.probe_signal_freq_h)
+            measurement_description += ('Lowest Octave Band : {0}\n').format(self.pvar.low_octave_band)
+            measurement_description += ('Highest Octave Band : {0}\n').format(self.pvar.high_octave_band)
+            log_data(description_file_name, measurement_description)
 
         return True
 
@@ -212,15 +236,12 @@ class pscript(lys.mclass):
         # Click on the help button to get more information.
         pass
 
-    def ProcessValue(self, v, c, N):
+    def ProcessValue(self):
         # Process single value
         # Click on the help button to get more information - especially
         # if you have chosen a user defined setting because you very likely
         # need adjustments in this case!
-
-        # r = math.exp((v+c) / N)
-        r = self.pvar.estimator.probe_pulse[c + (N * self.pvar.block_count)]
-        return r
+        pass
 
     def ProcessData(self):
         # Process data blocks
@@ -270,7 +291,7 @@ class pscript(lys.mclass):
                 return True
 
         # Get input blocks
-        delay = self.info.data_acquisition_delay  # In blocks
+        delay = self.pvar.data_acquisition_delay  # In blocks
         acquired_data_buffer = self.GetInputBlock(0)
         room_selector_buffer = self.GetInputBlock(1)
         room_selector_buffer_1 = self.GetInputBlock(2)
@@ -316,9 +337,8 @@ class pscript(lys.mclass):
                 if (self.pvar.block_count is delay):
                     self.pvar.measurement_count += 1
                     self.pvar.room_response = acquired_data_block
-                    if LOG_DATA:
-                        self.log_file_name = ('{0}/TestData-{1}.data').format(self.pvar.log_dir,
-                                                                              self.pvar.measurement_count)
+                    if self._LOG_DATA:
+                        self.log_file_name = ('{0}/Measurement-{1}.data').format(self.log_dir, self.pvar.measurement_count)
 
                 elif (self.pvar.block_count > delay):
                     self.pvar.room_response = np.append(self.pvar.room_response, acquired_data_block)
@@ -328,9 +348,9 @@ class pscript(lys.mclass):
                 self.pvar.block_count = 0  # Reset probe signal output block count
                 impulse_response = self.pvar.generator.estimate_impulse_response(
                     self.pvar.room_response[0:], self.pvar.reverse_signal)
-                impulse_response = impulse_response[:self.info.sampling_frequency * 1]
+                impulse_response = impulse_response[:int(self.pvar.sampling_frequency * 1)]
 
-                if (LOG_DATA) and (self.log_file_name is not None):
+                if (self._LOG_DATA) and (self.log_file_name is not None):
                     # ToDo add swtich within Dasylab
                     log_data(self.log_file_name, self.pvar.room_response)
 
