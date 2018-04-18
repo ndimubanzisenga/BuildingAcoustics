@@ -104,11 +104,6 @@ class pvar(object):
 
 class pscript(lys.mclass):
     def __init__(self, magic):
-        #self.RegisterTimeBase("NoiseGenerator", 800, "Noise generator for building sound insulation test ", UpdateTimebase)
-        #timebase_id = 800
-        #blockSize = 10000
-        #sampleDistance = 1 / float(blockSize * 5)
-        #Ly.SetTimeBase(timebase_id, blocksize, sampleDistance)
         print("## Initializing module.... ##")
         self.info = info()
         self.pvar = pvar(self.info.sampling_frequency, self.info.probe_signal_duration, self.info.probe_signal_freq_l,
@@ -241,7 +236,7 @@ class pscript(lys.mclass):
             blockSize = outBuffer.BlockSize
             dataLength = numpyDataArray.size
 
-            if (outBuffer == None):
+            if (outBuffer is None):
                 self.ShowWarning("Could not get output block! Stopped!")
                 Ly.StopExperiment()
                 return
@@ -271,7 +266,7 @@ class pscript(lys.mclass):
 
         # All inputs available?
         for i in range(self.NumInChannel):
-            if (self.GetInputBlock(i) == None):
+            if (self.GetInputBlock(i) is None):
                 return True
 
         # Get input blocks
@@ -391,14 +386,15 @@ class pscript(lys.mclass):
                 tx_room_spl = self.pvar.building_acoustics_measurement.tx_room_spl
                 rx_room_spl = self.pvar.building_acoustics_measurement.rx_room_spl
                 octave_bands = self.pvar.building_acoustics_measurement.octave_bands
-                #print("Reverberation time:\n{0}").format(reverberation_time)
-                #print("Tx Room SPL:\n{0}").format(tx_room_spl)
-                #print("Rx Room SPL:\n{0}").format(rx_room_spl)
-                #print("Octave bands \n{0}").format(octave_bands)
 
-                #reverberation_time = dilateArray(reverberation_time, block_size)
-                #reverberation_time_out_buffer = self.GetOutputBlock(1)
-                #numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer, reverberation_time)
+                # print("Reverberation time:\n{0}").format(reverberation_time)
+                # print("Tx Room SPL:\n{0}").format(tx_room_spl)
+                # print("Rx Room SPL:\n{0}").format(rx_room_spl)
+                # print("Octave bands \n{0}").format(octave_bands)
+
+                # reverberation_time = dilateArray(reverberation_time, block_size)
+                # reverberation_time_out_buffer = self.GetOutputBlock(1)
+                # numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer, reverberation_time)
 
                 tx_room_spl = dilateArray(tx_room_spl, block_size)
                 reverberation_time_out_buffer = self.GetOutputBlock(2)
