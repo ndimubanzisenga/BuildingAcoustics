@@ -9,7 +9,7 @@ import datetime
 import numpy as np
 from scipy.interpolate import UnivariateSpline
 
-ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+ROOT_DIR = Ly.GetStr(1)
 BUILDING_TYPES = {0: 'MultiStorey', 1: 'DetachedHouse', 2: 'Hotel', 3: 'Hospital', 4: 'School'}
 ELEMENT_TYPES = {0: 'Ceiling', 1: 'Wall', 2: 'Door'}
 
@@ -65,14 +65,20 @@ class pvar(object):
         self.measurement_description =  measurement_description
         self.initialize_test()
 
-    def get_sampling_frequency(self):
-        timebase_id = Ly.GetTimeBaseIDByName('Driver')
+    def get_sampling_frequency(self, timebase='Driver'):
+        """
+        Return sampling frequency of a timebase.
+        """
+        timebase_id = Ly.GetTimeBaseIDByName(timebase)
         sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
         sampling_frequency = 1.0 / float(sample_distance)
 
         return sampling_frequency
 
     def initialize_test_signal(self, signal_type='sine_sweep'):
+        """
+        Initialize test signal.
+        """
         self.sampling_frequency = self.get_sampling_frequency()
 
         self.signal_type = signal_type
@@ -85,6 +91,9 @@ class pvar(object):
         return
 
     def initialize_measurement(self):
+        """
+        Initialize building acoustic measurement, and measurement flags.
+        """
         self.room_response = None
         self.tx_room_measured = False
         self.rx_room_measured = False
@@ -95,11 +104,13 @@ class pvar(object):
         return
 
     def initialize_test(self):
+        """
+        Initialize sound insulation test.
+        """
         self.initialize_test_signal()
         self.initialize_measurement()
 
         return
-
 
 class pscript(lys.mclass):
     def __init__(self, magic):
@@ -165,6 +176,7 @@ class pscript(lys.mclass):
         self.pvar.probe_signal_freq_h = dom.GetValue("Param probe_signal_freq_h")
         self.pvar.data_acquisition_delay = dom.GetValue("Param data_acquisition_delay")
 
+        # Reinitialize sound insulation test with new parameters.
         self.pvar.initialize_test()
 
         # Configure Inputs and Outputs
@@ -209,9 +221,8 @@ class pscript(lys.mclass):
             self.pvar.initialize_measurement()
         # print (" Start - after fix:: FS = {0}").format(self.pvar.sampling_frequency)
 
+        # Log measurement description to file
         self._LOG_DATA = Ly.GetVar(12)
-
-        # Log measurement description data to file
         if self._LOG_DATA:
             ts = time.time()
             time_stamp = datetime.datetime.fromtimestamp(ts).strftime('%Y-%m-%d-%H%M%S')
@@ -429,9 +440,9 @@ class pscript(lys.mclass):
                     ref_curve_out_buffer = self.GetOutputBlock(4)
                     numpyToDasylab(ref_curve_out_buffer, acquired_data_buffer_0, ref_curve)
 
-                    # Log acquired Room Response to file
-                    if (self._LOG_DATA) and (self.log_file_name is not None):
-                        log_data(self.log_file_name, self.pvar.room_response)
+                # Log acquired Room Response to file
+                if (self._LOG_DATA) and (self.log_file_name is not None):
+                    log_data(self.log_file_name, self.pvar.room_response)
 
                 # Output computed building acoustic parameters
                 octave_bands = self.pvar.building_acoustics_measurement.octave_bands
