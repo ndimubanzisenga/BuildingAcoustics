@@ -63,7 +63,6 @@ class BuildingAcousticsMeasurement(object):
         self._f_stop = f_stop
         self._fraction = fraction
         self._fs = fs
-        self._room_acoustic_params = None
         self._rooms_measurements = list()
 
         self.octave_bands = OctaveBand(fstart=f_start, fstop=f_stop, fraction=fraction).center
@@ -80,22 +79,10 @@ class BuildingAcousticsMeasurement(object):
         rx_room_acoustic_params = AcousticParameters(bands_number)
         self._rooms_measurements.append(tx_room_acoustic_params)
         self._rooms_measurements.append(rx_room_acoustic_params)
-        self.update_attributes()
+        self._update_attributes()
         self._regulatations = load_regulations()
-        #self._room_acoustic_params = AcousticParameters(bands_number)
 
         return
-
-    def finalize_room_measurement(self):
-        self._rooms_measurements.append(self._room_acoustic_params)
-        return
-
-    def compute_building_acoustics_parameters(self):
-        """
-        Calculate building acoustics parameters: The Transmitting room and Receiving room spl,
-        the background noise level and reverberation time.
-        """
-        pass
 
     def verify_building_acoustics_regulation(self, Rw, tolerance, building_use, building_type, test_element_type):
         """
@@ -126,10 +113,11 @@ class BuildingAcousticsMeasurement(object):
     def diagnose_defect(self):
         pass
 
-    def update_attributes(self):
+    def _update_attributes(self):
         self.tx_room_spl = self._rooms_measurements[0].L
         self.rx_room_spl = self._rooms_measurements[1].L
         self.reverberation_time = self._rooms_measurements[1].T
+
         return
 
     def compute_spl(self, room, signal):
@@ -152,8 +140,8 @@ class BuildingAcousticsMeasurement(object):
             self._rooms_measurements[0].average_L(octaves_power_levels)
         elif room is 'rx':
             self._rooms_measurements[1].average_L(octaves_power_levels)
-        self.update_attributes()
-        # self._room_acoustic_params.average_L(octaves_power_levels)
+        self._update_attributes()
+
         return
 
     def compute_reverberation_time(self, room, signal=None, fs=None, method='impulse', args=None):
@@ -183,8 +171,8 @@ class BuildingAcousticsMeasurement(object):
             self._rooms_measurements[0].average_T(reverberation_time)
         elif room is 'rx':
             self._rooms_measurements[1].average_T(reverberation_time)
-        self.update_attributes()
-        # self._room_acoustic_params.average_T(reverberation_time)
+        self._update_attributes()
+
         return
 
     def DnT(self, T_0=0.5):
