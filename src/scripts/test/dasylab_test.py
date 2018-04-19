@@ -51,7 +51,7 @@ class info(object):
 # Temporary variables, not saved with the worksheet
 class pvar(object):
     def __init__(self, probe_signal_duration=10., probe_signal_freq_l=100., probe_signal_freq_h=10000.,
-                 low_octave_band=100., high_octave_band=3150., fraction=3, data_acquisition_delay=2, measurement_description=''):
+                 low_octave_band=100., high_octave_band=3150., fraction=3, data_acquisition_delay=2):
         # Working variables
         # Click on the help button to get more information.
         # Example variables
@@ -62,7 +62,6 @@ class pvar(object):
         self.probe_signal_freq_l = probe_signal_freq_l
         self.probe_signal_freq_h = probe_signal_freq_h
         self.data_acquisition_delay = data_acquisition_delay
-        self.measurement_description =  measurement_description
         self.initialize_test()
 
     def get_sampling_frequency(self, timebase='Driver'):
@@ -229,7 +228,12 @@ class pscript(lys.mclass):
             self.log_dir = ('{0}/data/DasylabTests/{1}').format(ROOT_DIR, time_stamp)
 
             description_file_name = self.log_dir + '/MeasurementDescription.dd'
-            measurement_description = str(self.pvar.measurement_description)
+            measurement_description = Ly.GetStr(3)
+            measurement_description += "\n###############\n\n"
+            measurement_description += ('\nTest element Surface S : {0}\n').format(Ly.GetVar(4))
+            measurement_description += ('Receiving room volume V : {0}\n').format(Ly.GetVar(5))
+            measurement_description += ('Building Type : {0}\n').format(Ly.GetVar(6))
+            measurement_description += ('Element Under Test Type : {0}\n').format(Ly.GetVar(7))
             measurement_description += ('Sampling Frequency : {0}\n').format(self.pvar.sampling_frequency)
             measurement_description += ('Signal Duration : {0}\n').format(self.pvar.probe_signal_duration)
             measurement_description += ('Noise Type : {0}\n').format(self.pvar.signal_type)
@@ -237,6 +241,7 @@ class pscript(lys.mclass):
             measurement_description += ('Highest Generated Frequency : {0}\n').format(self.pvar.probe_signal_freq_h)
             measurement_description += ('Lowest Octave Band : {0}\n').format(self.pvar.low_octave_band)
             measurement_description += ('Highest Octave Band : {0}\n').format(self.pvar.high_octave_band)
+            measurement_description += "\n###############\n"
             log_data(description_file_name, measurement_description)
 
         return True
