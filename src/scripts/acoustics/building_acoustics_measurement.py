@@ -222,7 +222,7 @@ class BuildingAcousticsMeasurement(object):
         t = transmission_loss
 
         # ToDo: Function to compute the reference curve for a dynamic freq. range
-        ref_curve = np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]])
+        ref_curve = self.get_ref_curve()
 
         # Workaround to handle actave bands beyond 3150 Hz center.
         # ToDo: Handle  center frequencies beyond the range [100., 3150.] for octave and third_octaves.
@@ -369,3 +369,6 @@ class BuildingAcousticsMeasurement(object):
                 self.regression_result = [x, y, y_]
 
         return t60
+
+    def get_ref_curve(self):
+        return np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]])
