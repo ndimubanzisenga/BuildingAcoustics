@@ -228,7 +228,7 @@ class pscript(lys.mclass):
         # print (" Start - after fix:: FS = {0}").format(self.pvar.sampling_frequency)
 
         # Initialize results
-        self._output_data_block = np.zeros(self.pvar.block_size)
+        self._output_data_block = np.zeros(self.pvar.block_size) # ToDo: Rename '_output_data_block' to 'probe_signal_block'
         self._octave_bands = np.zeros(self.pvar.block_size)
         self._D_nT = np.zeros(self.pvar.block_size)
         self._R = np.zeros(self.pvar.block_size)
@@ -344,11 +344,7 @@ class pscript(lys.mclass):
             if (self.GetInputBlock(i) is None):
                 return True
 
-        # Get input/output blocks
-        delay = self.pvar.data_acquisition_delay  # In blocks
-        #ToDo: better name for 'is_data_acquisition_done'-> process_data
-        is_data_acquisition_done = Ly.GetVar(1)
-
+        # Get input buffers
         acquired_data_buffer_0 = self.GetInputBlock(0)
         acquired_data_buffer_1 = self.GetInputBlock(1)
         acquired_data_buffer_2 = self.GetInputBlock(2)
@@ -357,6 +353,7 @@ class pscript(lys.mclass):
         acquired_data_buffer_5 = self.GetInputBlock(5)
         acquired_data_buffer_6 = self.GetInputBlock(6)
 
+        # Get output buffers
         probe_signal_out_buffer = self.GetOutputBlock(0)
         octave_bands_out_buffer = self.GetOutputBlock(1)
         D_nT_out_buffer = self.GetOutputBlock(2)
@@ -365,10 +362,14 @@ class pscript(lys.mclass):
         tx_room_spl_out_buffer = self.GetOutputBlock(5)
         rx_room_spl_out_buffer = self.GetOutputBlock(6)
 
+        # Initialize parameters
+        delay = self.pvar.data_acquisition_delay
         block_size = acquired_data_buffer_0.BlockSize
-        assert (block_size == self.pvar.block_size), "Mismatch of block size..."
-
         sequence_length = self.pvar.probe_signal.size
+        is_data_acquisition_done = Ly.GetVar(1) # ToDo: better name for 'is_data_acquisition_done'-> process_data
+
+        # Assert whether the incoming block size equals the initialized time base block size
+        assert (block_size == self.pvar.block_size), "Incoming Block Size does not match initialized Time Base Block Size!"
 
         # If data acquisition is enabled, play the probe signal and process the acquired data with a delay of 'delay' blocks since the probe signal is played after the first block.
         # This takes into account the time it takes to play and start recording the signal.
@@ -409,10 +410,6 @@ class pscript(lys.mclass):
                     if self.pvar.block_count < delay:
                         n_samples_last_block = sequence_length
                     acquired_data_block = acquired_data_block[:n_samples_last_block]
-
-                # Output probe signal in order to be played through sound card.
-                # probe_signal_out_buffer = self.GetOutputBlock(0)
-                # numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer_0, output_data_block)
 
                 # Acquire response signnal for further processing. Acquisition starts after a delay.
                 if (self.pvar.block_count is delay):
@@ -513,9 +510,10 @@ class pscript(lys.mclass):
                 numpyToDasylab(tx_room_spl_out_buffer, acquired_data_buffer_5, self._tx_room_spl)
                 numpyToDasylab(rx_room_spl_out_buffer, acquired_data_buffer_6, self._rx_room_spl)
 
+        # Output probe signal block
         numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer_0, self._output_data_block)
 
-
+        # Release input buffers
         acquired_data_buffer_0.Release()
         acquired_data_buffer_1.Release()
         acquired_data_buffer_2.Release()
@@ -523,4 +521,5 @@ class pscript(lys.mclass):
         acquired_data_buffer_4.Release()
         acquired_data_buffer_5.Release()
         acquired_data_buffer_6.Release()
+
         return True
