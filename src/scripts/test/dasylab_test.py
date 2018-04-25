@@ -32,9 +32,11 @@ def log_data(fileName, data):
         text_file.write(data)
         text_file.close()
     elif type(data) is np.ndarray:
-        np.savetxt(fileName, data)
+        # np.savetxt(fileName, data) # ToDo: Invertigate why this function crashes Analog Output by the DT9837A DAQ.
+        np.save(fileName, data)
     else:
         raise ValueError("Can't log data of unknown type.")
+
     return
 
 # Module variables initialization
@@ -64,21 +66,24 @@ class pvar(object):
         self.data_acquisition_delay = data_acquisition_delay
         self.initialize_test()
 
-    def get_sampling_frequency(self, timebase='Driver'):
+    def get_timebase(self, timebase='Driver'):
         """
         Return sampling frequency of a timebase.
         """
         timebase_id = Ly.GetTimeBaseIDByName(timebase)
+
         sample_distance = Ly.GetTimeBaseSampleDistance(timebase_id)
         sampling_frequency = 1.0 / float(sample_distance)
 
-        return sampling_frequency
+        block_size = Ly.GetTimeBaseBlockSize(timebase_id)
+
+        return sampling_frequency, block_size
 
     def initialize_test_signal(self, signal_type='sine_sweep'):
         """
         Initialize test signal.
         """
-        self.sampling_frequency = self.get_sampling_frequency()
+        self.sampling_frequency, self.block_size = self.get_timebase()
 
         self.signal_type = signal_type
         self.generator = Generator(fs=self.sampling_frequency, duration=self.probe_signal_duration)
@@ -118,6 +123,7 @@ class pscript(lys.mclass):
         self.pvar = pvar()
         self.log_dir = None
         self.log_file_name = None
+
         print("## Initialized module.... ##")
 
     def Create(self):
@@ -214,11 +220,21 @@ class pscript(lys.mclass):
         # Handle the mismatch of sampling_frequency when worksheet is loaded.
         # ToDo: Find permanent solution.
         # print (" Start - before fix:: FS = {0}").format(self.pvar.sampling_frequency)
-        if (self.pvar.sampling_frequency != self.pvar.get_sampling_frequency()):
+        sampling_frequency, block_size = self.pvar.get_timebase()
+        if (self.pvar.sampling_frequency != sampling_frequency):
             self.pvar.initialize_test()
         else:
             self.pvar.initialize_measurement()
         # print (" Start - after fix:: FS = {0}").format(self.pvar.sampling_frequency)
+
+        # Initialize results
+        self._output_data_block = np.zeros(self.pvar.block_size)
+        self._octave_bands = np.zeros(self.pvar.block_size)
+        self._D_nT = np.zeros(self.pvar.block_size)
+        self._R = np.zeros(self.pvar.block_size)
+        self._ref_curve = np.zeros(self.pvar.block_size)
+        self._tx_room_spl = np.zeros(self.pvar.block_size)
+        self._rx_room_spl = np.zeros(self.pvar.block_size)
 
         # Log measurement description to file
         self._LOG_DATA = Ly.GetVar(12)
@@ -328,8 +344,11 @@ class pscript(lys.mclass):
             if (self.GetInputBlock(i) is None):
                 return True
 
-        # Get input blocks
+        # Get input/output blocks
         delay = self.pvar.data_acquisition_delay  # In blocks
+        #ToDo: better name for 'is_data_acquisition_done'-> process_data
+        is_data_acquisition_done = Ly.GetVar(1)
+
         acquired_data_buffer_0 = self.GetInputBlock(0)
         acquired_data_buffer_1 = self.GetInputBlock(1)
         acquired_data_buffer_2 = self.GetInputBlock(2)
@@ -338,74 +357,108 @@ class pscript(lys.mclass):
         acquired_data_buffer_5 = self.GetInputBlock(5)
         acquired_data_buffer_6 = self.GetInputBlock(6)
 
+        probe_signal_out_buffer = self.GetOutputBlock(0)
+        octave_bands_out_buffer = self.GetOutputBlock(1)
+        D_nT_out_buffer = self.GetOutputBlock(2)
+        R_out_buffer = self.GetOutputBlock(3)
+        ref_curve_out_buffer = self.GetOutputBlock(4)
+        tx_room_spl_out_buffer = self.GetOutputBlock(5)
+        rx_room_spl_out_buffer = self.GetOutputBlock(6)
+
         block_size = acquired_data_buffer_0.BlockSize
+        assert (block_size == self.pvar.block_size), "Mismatch of block size..."
+
         sequence_length = self.pvar.probe_signal.size
 
-        is_data_acquisition_done = Ly.GetVar(1)
+        # If data acquisition is enabled, play the probe signal and process the acquired data with a delay of 'delay' blocks since the probe signal is played after the first block.
+        # This takes into account the time it takes to play and start recording the signal.
         if not is_data_acquisition_done:
-            # Process data. Acquires data with a delay of 'delay' blocks, since the probe signal is played after the first block.
-            # Hence the time it takes to play and start recording the signal is taken into account
+            # Ensures that the duration of the acquired and processed response signal is same as the probe signal duration.
+            # If the right duration of response signal is acquired, then building acoustics desciptors are derived.
             if (block_size * (self.pvar.block_count - delay)) < sequence_length:
                 acquired_data_block = dasylabToNumpy(acquired_data_buffer_0)
-                output_data_block = None
 
+                # If the number of samples of the probe signal is not a multiple of block_size,
+                # handle the last block so as to match the acquired and probe signals durations.
                 if (sequence_length - block_size * self.pvar.block_count) < block_size:
-                    # Check if this is the last block of the generated signal
-                    # Check if the last block of the generated signal has fewer samples than the block_size
+                    # In case the whole generated probe signal has been played (case where delay > 0), play a silence sequence.
                     if (sequence_length - block_size * self.pvar.block_count) <= 0:
-                        # In case the whole probe signal has been played
-                        output_data_block = np.zeros(block_size)
+                        self._output_data_block = np.zeros(block_size)
+
+                    # If this is the last block to be played in the probe signal
                     else:
-                        # If this is the last block in the probe signal
-                        output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):]
-                    n_samples_last_block = sequence_length - block_size * (self.pvar.block_count - delay)
-                    if self.pvar.block_count < delay:
-                        # If the probe signal length is less than the block_size. Hence the signal
-                        # can't be delayed further
-                        n_samples_last_block = sequence_length
-                    acquired_data_block = acquired_data_block[:n_samples_last_block]
+                        self._output_data_block = self.pvar.probe_signal[(block_size * self.pvar.block_count):]
+                    # n_samples_last_block = sequence_length - block_size * (self.pvar.block_count - delay)
+
+                    # If the probe signal duration is shorter than the delay needed to start processing data,
+                    # the signal full signal is considered since it can't be delayed.
+                    # if self.pvar.block_count < delay:
+                        # n_samples_last_block = sequence_length
+                    # acquired_data_block = acquired_data_block[:n_samples_last_block]
+
+                # If the number of samples of the probe signal is a multiple of block_size,
                 else:
-                    # Case where the generated signal block is a equal to the block_size
-                    output_data_block = self.pvar.probe_signal[(
+                    self._output_data_block = self.pvar.probe_signal[(
                         block_size * self.pvar.block_count):(block_size * (self.pvar.block_count + 1))]
 
-                probe_signal_out_buffer = self.GetOutputBlock(0)
-                numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer_0, output_data_block)
+                # Handle last block in measurement of room response.
+                if (sequence_length - block_size * (self.pvar.block_count - delay)) < block_size:
+                    n_samples_last_block = sequence_length - block_size * (self.pvar.block_count - delay)
+                    # If the probe signal duration is shorter than the delay needed to start processing data,
+                    # the signal full signal is considered since it can't be delayed.
+                    if self.pvar.block_count < delay:
+                        n_samples_last_block = sequence_length
+                    acquired_data_block = acquired_data_block[:n_samples_last_block]
 
-                # Store acquired signal. Storage starts after a delay since the probe signal isn't played yet.
+                # Output probe signal in order to be played through sound card.
+                # probe_signal_out_buffer = self.GetOutputBlock(0)
+                # numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer_0, output_data_block)
+
+                # Acquire response signnal for further processing. Acquisition starts after a delay.
                 if (self.pvar.block_count is delay):
                     self.pvar.measurement_count += 1
                     self.pvar.room_response = acquired_data_block
                     if self._LOG_DATA:
-                        self.log_file_name = ('{0}/Measurement-{1}.data').format(self.log_dir, self.pvar.measurement_count)
+                        self.log_file_name = ('{0}/Measurement-{1}-').format(self.log_dir, self.pvar.measurement_count)
 
                 elif (self.pvar.block_count > delay):
                     self.pvar.room_response = np.append(self.pvar.room_response, acquired_data_block)
+
                 self.pvar.block_count = self.pvar.block_count + 1
+
+            # Calculate building acoustics desciptors, if the duration of the acquired response signal is same as the generated probe signal.
             else:
+                # Terminate room response measurement
+                # ToDo: Disable room selector global variables as well. But first fix the the result enabling.
+                self.pvar.block_count = 0  # Reset probe signal processed block count
+                Ly.SetVar(1, 5.0) # Terminate data acquisition
+                room = ''
 
                 impulse_response = self.pvar.generator.estimate_impulse_response(self.pvar.room_response[0:], self.pvar.reverse_signal)
                 # Trim IR to 1 sec
                 # ToDo: make this duration dynamic
                 impulse_response = impulse_response[:int(self.pvar.sampling_frequency * 1)]
 
+                # If source room is selected
                 if Ly.GetVar(13):
-                    # Source room selected
-                    self.pvar.building_acoustics_measurement.compute_spl('tx', self.pvar.room_response)
+                    room = 'tx'
+                    self.pvar.building_acoustics_measurement.compute_spl(room, self.pvar.room_response)
                     self.pvar.building_acoustics_measurement.compute_reverberation_time(
-                        'tx', signal=impulse_response, args='t10')
+                        room, signal=impulse_response, args='t10')
                     self.pvar.tx_room_measured = True
 
+                # If receiving room is selected
                 elif Ly.GetVar(14):
-                    # Receiving room selected
-                    self.pvar.building_acoustics_measurement.compute_spl('rx', self.pvar.room_response)
+                    room = 'rx'
+                    self.pvar.building_acoustics_measurement.compute_spl(room, self.pvar.room_response)
                     self.pvar.building_acoustics_measurement.compute_reverberation_time(
-                        'rx', signal=impulse_response, args='t10')
+                        room, signal=impulse_response, args='t10')
                     self.pvar.rx_room_measured = True
 
-                # If both source and receiving rooms have been measured, output results
-                # ToDo: Result switch in Dasylab to enable output of results
-                if self.pvar.tx_room_measured and self.pvar.rx_room_measured:
+                # If both source and receiving rooms have been measured, compute sound transmission results
+                # ToDo: Result switch in Dasylab to enable output of results.
+                show_results = Ly.GetVar(19)
+                if self.pvar.tx_room_measured and self.pvar.rx_room_measured and show_results:
                     # Calculate DnT,w
                     D_nT = self.pvar.building_acoustics_measurement.DnT()
                     D_nT_w, ref_curve = self.pvar.building_acoustics_measurement.compute_single_number(D_nT)
@@ -433,48 +486,35 @@ class pscript(lys.mclass):
                     Ly.SetVar(9, violation_status)
 
                     # Output results.
-                    D_nT = dilateArray(D_nT, block_size)
-                    D_nT_out_buffer = self.GetOutputBlock(2)
-                    numpyToDasylab(D_nT_out_buffer, acquired_data_buffer_0, D_nT)
+                    self._D_nT = dilateArray(D_nT, block_size)
+                    self._R = dilateArray(R, block_size)
+                    self._ref_curve = dilateArray(ref_curve, block_size)
 
-                    R = dilateArray(R, block_size)
-                    R_out_buffer = self.GetOutputBlock(3)
-                    numpyToDasylab(R_out_buffer, acquired_data_buffer_0, R)
-
-                    ref_curve = dilateArray(ref_curve, block_size)
-                    ref_curve_out_buffer = self.GetOutputBlock(4)
-                    numpyToDasylab(ref_curve_out_buffer, acquired_data_buffer_0, ref_curve)
+                    numpyToDasylab(D_nT_out_buffer, acquired_data_buffer_2, self._D_nT)
+                    numpyToDasylab(R_out_buffer, acquired_data_buffer_3, self._R)
+                    numpyToDasylab(ref_curve_out_buffer, acquired_data_buffer_4, self._ref_curve)
 
                 # Log acquired Room Response to file
                 if (self._LOG_DATA) and (self.log_file_name is not None):
-                    log_data(self.log_file_name, self.pvar.room_response)
+                    fileName = self.log_file_name + room
+                    log_data(fileName, self.pvar.room_response)
 
                 # Output computed building acoustic parameters
+                # reverberation_time = self.pvar.building_acoustics_measurement.reverberation_time
                 octave_bands = self.pvar.building_acoustics_measurement.octave_bands
-                reverberation_time = self.pvar.building_acoustics_measurement.reverberation_time
                 tx_room_spl = self.pvar.building_acoustics_measurement.tx_room_spl
                 rx_room_spl = self.pvar.building_acoustics_measurement.rx_room_spl
 
-                # reverberation_time = dilateArray(reverberation_time, block_size)
-                # reverberation_time_out_buffer = self.GetOutputBlock(1)
-                # numpyToDasylab(reverberation_time_out_buffer, acquired_data_buffer_0, reverberation_time)
+                self._octave_bands = dilateArray(octave_bands, block_size)
+                self._tx_room_spl = dilateArray(tx_room_spl, block_size)
+                self._rx_room_spl = dilateArray(rx_room_spl, block_size)
 
-                octave_bands = dilateArray(octave_bands, block_size)
-                octave_bands_out_buffer = self.GetOutputBlock(1)
-                numpyToDasylab(octave_bands_out_buffer, acquired_data_buffer_0, octave_bands)
+                numpyToDasylab(octave_bands_out_buffer, acquired_data_buffer_1, self._octave_bands)
+                numpyToDasylab(tx_room_spl_out_buffer, acquired_data_buffer_5, self._tx_room_spl)
+                numpyToDasylab(rx_room_spl_out_buffer, acquired_data_buffer_6, self._rx_room_spl)
 
-                tx_room_spl = dilateArray(tx_room_spl, block_size)
-                tx_room_spl_out_buffer = self.GetOutputBlock(5)
-                numpyToDasylab(tx_room_spl_out_buffer, acquired_data_buffer_0, tx_room_spl)
+        numpyToDasylab(probe_signal_out_buffer, acquired_data_buffer_0, self._output_data_block)
 
-                rx_room_spl = dilateArray(rx_room_spl, block_size)
-                rx_room_spl_out_buffer = self.GetOutputBlock(6)
-                numpyToDasylab(rx_room_spl_out_buffer, acquired_data_buffer_0, rx_room_spl)
-
-                # Terminate acquisition
-                # ToDo: Disable room selector global variables as well. But first fix the the result enabling.
-                self.pvar.block_count = 0  # Reset probe signal processed block count
-                Ly.SetVar(1, 5.0)  # Terminate data acquisition
 
         acquired_data_buffer_0.Release()
         acquired_data_buffer_1.Release()
