@@ -8,7 +8,6 @@ from signal import Spectrum, OctaveBand, Signal
 from scipy import stats
 import numpy as np
 
-# ROOT_DIR = ""
 from sys import platform
 if platform == "win32":
     ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
@@ -30,7 +29,7 @@ class AcousticParameters(object):
     def __init__(self, bands_number):
         self.L = np.zeros(bands_number)
         self.T = np.zeros(bands_number)
-        self.Ln = np.zeros(bands_number)
+        self.Ln = np.zeros(bands_number)  # Background noise level?
         self.L_sigma = np.zeros(bands_number)
         self.T_sigma = np.zeros(bands_number)
         self.Ln_sigma = np.zeros(bands_number)
@@ -39,7 +38,8 @@ class AcousticParameters(object):
 
     def average_L(self, L):
         N = self._L_count
-        self.L = (self.L * N + L) / (N + 1)
+        p = ((10**(self.L / 10)) * N + (10**(L / 10))) / (N + 1)
+        self.L = 10 * np.log10(p)
         self._L_count = self._L_count + 1
         # ToDo: Set sigma
 
@@ -371,4 +371,4 @@ class BuildingAcousticsMeasurement(object):
         return t60
 
     def get_ref_curve(self):
-        return np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23]])
+        return np.array([[0, 3, 6, 9, 12, 15, 18, 19, 20, 21, 22, 23, 23, 23, 23, 23, 23, 23]])
