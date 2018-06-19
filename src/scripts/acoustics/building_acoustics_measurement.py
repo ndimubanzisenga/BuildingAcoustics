@@ -10,7 +10,7 @@ import numpy as np
 
 from sys import platform
 if platform == "win32":
-    ROOT_DIR = 'C:/Users/sengan/Documents/Projects/BuildingAcoustics/'
+    ROOT_DIR = 'C:/Users/sengan/Documents/Projects/Thesis/src/'
 elif platform == "linux2":
     ROOT_DIR = '../../../'
 
