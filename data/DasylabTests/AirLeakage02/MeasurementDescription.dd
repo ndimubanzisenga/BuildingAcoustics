@@ -1,0 +1,17 @@
+Door fully closed without key
+###############
+
+
+Test element Surface S : 10.0
+Receiving room volume V : 125.0
+Building Type : 1.0
+Element Under Test Type : 1.0
+Sampling Frequency : 20000.0
+Signal Duration : 10.0
+Noise Type : sine_sweep
+Lowest Generated Frequency : 100.0
+Highest Generated Frequency : 10000.0
+Lowest Octave Band : 100.0
+Highest Octave Band : 3150.0
+
+###############
