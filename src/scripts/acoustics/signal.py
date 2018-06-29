@@ -627,7 +627,7 @@ class Spectrum(object):
         level = 10.0 * np.log10(power / ref**2.0)
         return fob, power, level
 
-    def fractional_octaves(self, x, fs, start=100.0, stop=10000.0, fraction=3, density=False, ref=REFERENCE_PRESSURE):
+    def fractional_octaves(self, x, fs, frequencies=None, start=100.0, stop=10000.0, fraction=3, density=False, ref=REFERENCE_PRESSURE):
         """Calculate level per 1/N-octave in frequency domain using the FFT. N is `fraction`.
 
         :param x: Instantaneous signal :math:`x(t)`.
@@ -641,7 +641,14 @@ class Spectrum(object):
 
         .. note:: Exact center frequencies are always calculated.
         """
-        fob = OctaveBand(fstart=start, fstop=stop, fraction=fraction)
+        if frequencies is None:
+            if (start is None) and (stop is None):
+                raise ValueError(
+                    "Frequencies where spl is to be estimated must be specified. Or the start and stop frequencies")
+            fob = OctaveBand(fstart=start, fstop=stop, fraction=fraction)
+        else:
+            fob = OctaveBand(center=frequencies, fraction=fraction)
+
         f, p = self.power_spectrum(x, fs)
         fnb = EqualBand(f)
         power = self.integrate_bands(p, fnb, fob)

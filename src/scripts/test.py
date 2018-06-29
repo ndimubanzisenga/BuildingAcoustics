@@ -39,12 +39,13 @@ def load_wavfile(file_name):
     return data
 
 
-def plot_data(y_data, x_data=None, title=None, y_label=None, x_label=None, scale='linear', args=None):
+'''def plot_data(y_data, x_data=None, title=None, y_label=None, x_label=None, scale='linear', args=None):
+    colors = ['b', 'g']
     fig, ax = plt.subplots()
     if x_data is None:
-        ax.plot(y_data)
+        ax.plot(y_data, c=colors[0])
     else:
-        ax.plot(x_data, y_data)
+        ax.plot(x_data, y_data, c=colors[0])
     ax.set_xscale(scale)
     if args is not None:
         ax.set_xticks(args)
@@ -53,14 +54,62 @@ def plot_data(y_data, x_data=None, title=None, y_label=None, x_label=None, scale
     ax.set_xlabel(x_label)
     ax.set_ylabel(y_label)
     ax.grid()
-    file_name = result_dir + title
-    fig.savefig(file_name)
+    #file_name = result_dir + title
+    # fig.savefig(file_name)'''
+
+
+def plot_data(y_data, x_data=None, title=None, y_label=None, x_label=None, legend=None, scale='linear', multi_plot=False,
+              spread_plot=False, Spreads=None, args=None):
+    colors = ['b', 'r']
+    fig, ax = plt.subplots()
+    if x_data is None:
+        if multi_plot:
+            if len(y_data) > 2:
+                ValueError("Current multi_plot version only support up to two plots")
+
+            for ii in xrange(len(y_data)):
+                ax.plot(y_data[ii], color=colors[ii], label=legend[ii])
+                if spread_plot:
+                    ax.plot(Spreads[ii], color=colors[ii], alpha=0.4)
+        else:
+            ax.plot(y_data, color=colors[0], label=legend)
+            if spread_plot:
+                ax.plot(Spreads, color=colors[0], alpha=0.4)
+
+    else:
+        if multi_plot:
+            if len(y_data) > 2:
+                ValueError("Current multi_plot version only support up to two plots")
+
+            for ii in xrange(len(y_data)):
+                ax.plot(x_data, y_data[ii], color=colors[ii], label=legend[ii])
+                if spread_plot:
+                    ax.plot(x_data, Spreads[ii], color=colors[ii], alpha=0.4)
+                    # ax.fill_between(x_data, Spreads[ii][0], Spreads[ii][1], color=colors[ii], alpha=0.4, label='Spread')
+        else:
+            ax.plot(x_data, y_data, color=colors[0], label=legend)
+            if spread_plot:
+                ax.plot(x_data, Spreads, color=colors[0], alpha=0.4)
+
+    ax.set_xscale(scale)
+    if args is not None:
+        ax.set_xticks(args)
+        ax.get_xaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+    ax.set_title(title)
+    ax.set_xlabel(x_label)
+    ax.set_ylabel(y_label)
+    ax.legend()
+    ax.grid()
+    # file_name = result_dir + title
+    # fig.savefig(file_name)
 
 
 class Test(object):
     def __init__(self, reused_file=None, fs=44100., duration=10.0, n_channels=1, f_start=100., f_stop=5000., fraction=3, noise_type='sine_sweep'):
         # ToDo: Deistinguish between f_start, f_stop for generator and for analysis
         self._fs = fs
+        self._f_start = f_start
+        self._f_stop = f_stop
         self.probe_signal, self.reverse_filter = self.generate_probe_signal(fs, duration, 50., 8000., 'sine_sweep')
         if reused_file is not None:
             self.room_response = load_wavfile(reused_file)
@@ -72,7 +121,7 @@ class Test(object):
 
         self.test_acoustic_parameters_measurement()
         # self.test_generator()
-        # plt.show()
+        plt.show()
 
     def generate_probe_signal(self, fs, duration, f_start, f_stop, noise_type):
         self._gen = Generator(fs, duration)
@@ -125,8 +174,8 @@ class Test(object):
             building_acoustics_measurement.octave_bands
 
     def test_generator(self):
-        f_start = 50.
-        f_stop = 8000.
+        f_start = 100.
+        f_stop = 5000.
         fraction = 3
         white_noise = self._gen.noise('white')
         pink_noise = self._gen.noise('pink')
@@ -215,16 +264,18 @@ class Test(object):
         plot_data(y_data=schroeder_curve_db, x_data=t, title='Schroeder curve - dB', y_label='Sound pressure Level [dB]', x_label='Time [sec]',
                   scale='linear', args=None)
 
-        plt.figure()
+        plot_data(y_data=[test_bandpass_filtered_ir_db, schroeder_curve_db], x_data=t, title='Time [sec]',
+                  y_label='Sound pressure Level [dB]', x_label='Time [sec]', legend=[None, None], scale='linear', multi_plot=True)
+        '''plt.figure()
         plt.plot(t, test_bandpass_filtered_ir_db)
         plt.plot(t, schroeder_curve_db)
         plt.xlabel('Time [sec]')
         plt.ylabel('Sound pressure Level [dB]')
-        plt.grid()
+        plt.grid()'''
 
         plt.figure()
-        plt.scatter(x[::100], y[::100], marker='+', c='r')
-        plt.plot(x, y_)
+        plt.plot(x, y_, c='b')
+        plt.scatter(x[::20], y[::20], marker='+', c='r')
         plt.title('Decay curve fitting')
         plt.xlabel('Time [sec]')
         plt.ylabel('Sound pressure Level [dB]')

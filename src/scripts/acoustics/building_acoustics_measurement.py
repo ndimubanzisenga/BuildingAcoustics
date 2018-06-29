@@ -135,7 +135,9 @@ class BuildingAcousticsMeasurement(object):
         octave_bands = self.octave_bands
 
         spectrum = Spectrum()
-        _, octaves_power, octaves_power_levels = spectrum.third_octaves(signal, self._fs, frequencies=octave_bands)
+        # _, octaves_power, octaves_power_levels = spectrum.third_octaves(signal, self._fs, frequencies=octave_bands)
+        _, octaves_power, octaves_power_levels = spectrum.fractional_octaves(
+            signal, self._fs, frequencies=octave_bands, fraction=self._fraction)
         if room is 'tx':
             self._rooms_measurements[0].average_L(octaves_power_levels)
         elif room is 'rx':
