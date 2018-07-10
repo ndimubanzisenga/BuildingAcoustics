@@ -297,6 +297,8 @@ class BuildingAcousticsMeasurement(object):
 
         :param measured_impulse_response: Numpy array of the measured impulse response.
         :param rt: Reverberation time estimator. It accepts `'t30'`, `'t20'`, `'t10'` and `'edt'`.
+        :test_octave_band: For test purposes. The calculation results of this band are stored as class variables,
+                           to be accessed from objects.
         :returns: Reverberation time :math:`T_{60}`
 
         """
